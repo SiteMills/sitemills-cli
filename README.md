@@ -299,55 +299,31 @@ sitemills-cli <command> [options]
   ```bash
   sitemills-cli setup-payments <projectId> <siteEnvironment> [--owner-name <ownerName>] [--country <country>]
   ```
-- **terminal-readers**: List registered physical Stripe Terminal smart readers (WisePOS E, S700, T600) for a project.
+- **domain**: View current custom domain setup, Cloudflare SSL status, and required DNS configuration records.
   ```bash
-  sitemills-cli terminal-readers <projectId> <siteEnvironment> [--location <locationId>]
+  sitemills-cli domain <projectId>
   ```
-- **register-terminal-reader**: Register and configure a physical smart card reader using the 3-word pairing code displayed on the terminal screen.
+- **domain-add**: Attach and provision a custom domain for your project website.
   ```bash
-  sitemills-cli register-terminal-reader <projectId> <siteEnvironment> <registrationCode> [label] [--location <locationId>]
+  sitemills-cli domain-add <projectId> <domain>
   ```
-- **terminal-readers**: List registered physical Stripe Terminal smart readers (WisePOS E, S700, T600) for a project.
+- **domain-verify**: Trigger DNS record and SSL certificate issuance verification checks.
   ```bash
-  sitemills-cli terminal-readers <projectId> <siteEnvironment> [--location <locationId>]
+  sitemills-cli domain-verify <projectId>
   ```
-- **register-terminal-reader**: Register and configure a physical smart card reader using the 3-word pairing code displayed on the terminal screen.
+- **domain-autoconfig**: Automatically configure DNS records (A, CNAME, TXT) via connected GoDaddy registrar account.
   ```bash
-  sitemills-cli register-terminal-reader <projectId> <siteEnvironment> <registrationCode> [label] [--location <locationId>]
+  sitemills-cli domain-autoconfig <projectId>
   ```
-- **terminal-readers**: List registered physical Stripe Terminal smart readers (WisePOS E, S700, T600) for a project.
+- **domain-remove**: Unbind custom domain from project and remove Cloudflare custom hostname.
   ```bash
-  sitemills-cli terminal-readers <projectId> <siteEnvironment> [--location <locationId>]
+  sitemills-cli domain-remove <projectId>
   ```
-- **register-terminal-reader**: Register and configure a physical smart card reader using the 3-word pairing code displayed on the terminal screen.
+- **domain-search**: Search / list available domains in the connected registrar account.
   ```bash
-  sitemills-cli register-terminal-reader <projectId> <siteEnvironment> <registrationCode> [label] [--location <locationId>]
+  sitemills-cli domain-search <projectId> [query]
   ```
-- **terminal-readers**: List registered physical Stripe Terminal smart readers (WisePOS E, S700, T600) for a project.
-  ```bash
-  sitemills-cli terminal-readers <projectId> <siteEnvironment> [--location <locationId>]
-  ```
-- **register-terminal-reader**: Register and configure a physical smart card reader using the 3-word pairing code displayed on the terminal screen.
-  ```bash
-  sitemills-cli register-terminal-reader <projectId> <siteEnvironment> <registrationCode> [label] [--location <locationId>]
-  ```
-- **terminal-readers**: List registered physical Stripe Terminal smart readers (WisePOS E, S700, T600) for a project.
-  ```bash
-  sitemills-cli terminal-readers <projectId> <siteEnvironment> [--location <locationId>]
-  ```
-- **register-terminal-reader**: Register and configure a physical smart card reader using the 3-word pairing code displayed on the terminal screen.
-  ```bash
-  sitemills-cli register-terminal-reader <projectId> <siteEnvironment> <registrationCode> [label] [--location <locationId>]
-  ```
-- **terminal-readers**: List registered physical Stripe Terminal smart readers (WisePOS E, S700, T600) for a project.
-  ```bash
-  sitemills-cli terminal-readers <projectId> <siteEnvironment> [--location <locationId>]
-  ```
-- **register-terminal-reader**: Register and configure a physical smart card reader using the 3-word pairing code displayed on the terminal screen.
-  ```bash
-  sitemills-cli register-terminal-reader <projectId> <siteEnvironment> <registrationCode> [label] [--location <locationId>]
-  ```
-- **encryption**: Manage project data encryption at rest (status check, secure key generation, configuring key, enabling encryption).
+- **encryption**: Manage project data encryption at rest (status check, secure key generation, configuring key, enabling encryption). (status check, secure key generation, configuring key, enabling encryption).
   ```bash
   sitemills-cli encryption <projectId> [status | generate-key | set-key <key> | enable]
   ```

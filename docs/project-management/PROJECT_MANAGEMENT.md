@@ -68,6 +68,7 @@ At the top and sidebar of every project view:
 
 ### ⚙️ Settings Tab
 - **General**: Configure visibility, SEO indexing, and general project metadata.
+- **Custom Domains**: Bind custom apex domains or subdomains with automatic Cloudflare SSL issuance, GoDaddy DNS auto-configuration, and DNS challenge verification.
 - **Branding**: Upload crops of banners for the project's header.
 - **Payments**: Link a Stripe Connect account to process commercial sales. Toggles between Sandbox and Production modes.
 - **API Keys**: Register names, resolutions, and audit scopes for environment variables. Toggles plain vs masked secrets.
