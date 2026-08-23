@@ -299,6 +299,54 @@ sitemills-cli <command> [options]
   ```bash
   sitemills-cli setup-payments <projectId> <siteEnvironment> [--owner-name <ownerName>] [--country <country>]
   ```
+- **terminal-readers**: List registered physical Stripe Terminal smart readers (WisePOS E, S700, T600) for a project.
+  ```bash
+  sitemills-cli terminal-readers <projectId> <siteEnvironment> [--location <locationId>]
+  ```
+- **register-terminal-reader**: Register and configure a physical smart card reader using the 3-word pairing code displayed on the terminal screen.
+  ```bash
+  sitemills-cli register-terminal-reader <projectId> <siteEnvironment> <registrationCode> [label] [--location <locationId>]
+  ```
+- **terminal-readers**: List registered physical Stripe Terminal smart readers (WisePOS E, S700, T600) for a project.
+  ```bash
+  sitemills-cli terminal-readers <projectId> <siteEnvironment> [--location <locationId>]
+  ```
+- **register-terminal-reader**: Register and configure a physical smart card reader using the 3-word pairing code displayed on the terminal screen.
+  ```bash
+  sitemills-cli register-terminal-reader <projectId> <siteEnvironment> <registrationCode> [label] [--location <locationId>]
+  ```
+- **terminal-readers**: List registered physical Stripe Terminal smart readers (WisePOS E, S700, T600) for a project.
+  ```bash
+  sitemills-cli terminal-readers <projectId> <siteEnvironment> [--location <locationId>]
+  ```
+- **register-terminal-reader**: Register and configure a physical smart card reader using the 3-word pairing code displayed on the terminal screen.
+  ```bash
+  sitemills-cli register-terminal-reader <projectId> <siteEnvironment> <registrationCode> [label] [--location <locationId>]
+  ```
+- **terminal-readers**: List registered physical Stripe Terminal smart readers (WisePOS E, S700, T600) for a project.
+  ```bash
+  sitemills-cli terminal-readers <projectId> <siteEnvironment> [--location <locationId>]
+  ```
+- **register-terminal-reader**: Register and configure a physical smart card reader using the 3-word pairing code displayed on the terminal screen.
+  ```bash
+  sitemills-cli register-terminal-reader <projectId> <siteEnvironment> <registrationCode> [label] [--location <locationId>]
+  ```
+- **terminal-readers**: List registered physical Stripe Terminal smart readers (WisePOS E, S700, T600) for a project.
+  ```bash
+  sitemills-cli terminal-readers <projectId> <siteEnvironment> [--location <locationId>]
+  ```
+- **register-terminal-reader**: Register and configure a physical smart card reader using the 3-word pairing code displayed on the terminal screen.
+  ```bash
+  sitemills-cli register-terminal-reader <projectId> <siteEnvironment> <registrationCode> [label] [--location <locationId>]
+  ```
+- **terminal-readers**: List registered physical Stripe Terminal smart readers (WisePOS E, S700, T600) for a project.
+  ```bash
+  sitemills-cli terminal-readers <projectId> <siteEnvironment> [--location <locationId>]
+  ```
+- **register-terminal-reader**: Register and configure a physical smart card reader using the 3-word pairing code displayed on the terminal screen.
+  ```bash
+  sitemills-cli register-terminal-reader <projectId> <siteEnvironment> <registrationCode> [label] [--location <locationId>]
+  ```
 - **encryption**: Manage project data encryption at rest (status check, secure key generation, configuring key, enabling encryption).
   ```bash
   sitemills-cli encryption <projectId> [status | generate-key | set-key <key> | enable]
