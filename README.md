@@ -14,6 +14,8 @@ SiteMills CLI Tool for project code management, continuous integration, database
 >    ```
 > 3. Copy the updated `README.md` and the new binaries from `dist/binaries/` to the public `sitemills-cli` repository.
 > 4. Commit and push the updates in the public repository to release them to users.
+> 
+> See the complete [Release Management & Auto-Update Guide](docs/RELEASES_AND_UPDATES.md) for full instructions.
 
 ## Installation
 
@@ -119,6 +121,35 @@ SiteMills clearly distinguishes between the **Platform Management Dashboard** an
 > - **Live Deployed Websites**: Web applications deployed to SiteMills are hosted on subdomains: `https://<projectId>.sitemills.com` for Production, `https://<projectId>-staging.sitemills.com` for Staging, and `https://<projectId>-dev.dev.sitemills.com` for Dev.
 > - **Platform Console Dashboard**: The web dashboard is located at `https://sitemills.com/project/<projectId>` (singular `/project/`, **not** plural `/projects/`). Never link to `https://sitemills.com/projects/<projectId>` as that is an internal API route prefix (`/api/v1/projects/...`) and will fail to load in the browser.
 
+## Preview Access Tokens & Non-Production Environments
+
+Non-production environments (**DEV**, **STAGING**, and **Branch Previews**) are private and developer-gated by default on SiteMills to protect work-in-progress code from unauthorized public access and search engines.
+
+### How `preview_token` Works
+
+1. **Unauthenticated / Guest Access**:
+   When you run `sitemills-cli info <projectId>`, `sitemills-cli deploy ...`, `sitemills-cli push ...`, or `sitemills-cli list-branches`, the CLI automatically attaches a cryptographically signed JWT parameter (`?preview_token=...`) to non-production URLs.
+   - Send this complete link to clients, QA testers, or open it in incognito/private windows.
+   - Upon first visit, SiteMills validates the token and sets a secure `preview_bypass_token` cookie for that session.
+   - The user can then navigate internal links, API requests, and pages without needing the parameter repeated.
+
+2. **What Happens When the Token Expires?**:
+   - Preview tokens have an expiration lifetime.
+   - If an unauthenticated user opens an expired link or the cookie expires, they will receive:
+     ```text
+     Authentication required. Please log in to SiteMills.
+     ```
+   - To regain access, simply generate a fresh link using `sitemills-cli info <projectId>` or `sitemills-cli deploy ...`.
+
+3. **Logged-in SiteMills Users**:
+   - If a reviewer or team member is logged into their SiteMills account, they **do not need a preview token**.
+   - Their active session cookie (`USER_AUTH_TOKEN`) authorizes access directly to all permitted project environments.
+
+4. **Production Environments (`PROD`)**:
+   - Production URLs (`https://<projectId>.sitemills.com`) are always public and do not require authentication or preview tokens.
+
+---
+
 ## Complete Command Reference
 
 ```bash
@@ -134,6 +165,10 @@ sitemills-cli <command> [options]
 - **list**: List all projects owned by or shared with your account.
   ```bash
   sitemills-cli list
+  ```
+- **info**: Fetch comprehensive project information, metadata, deployment environment URLs, and branch preview links with `preview_token` authentication bypass parameters for non-prod environments.
+  ```bash
+  sitemills-cli info <projectId>
   ```
 - **import**: Import a local project directory into a new SiteMills project.
   ```bash
@@ -268,10 +303,28 @@ sitemills-cli <command> [options]
   ```bash
   sitemills-cli encryption <projectId> [status | generate-key | set-key <key> | enable]
   ```
+- **version**: Print the current CLI version and check for newer releases.
+  ```bash
+  sitemills-cli version
+  ```
+- **update**: Check for updates and force an in-place upgrade of the standalone binary.
+  ```bash
+  sitemills-cli update [--force]
+  ```
 - **delete**: Delete a project on SiteMills.
   ```bash
   sitemills-cli delete <projectId>
   ```
+
+---
+
+## Automatic Updates
+
+The compiled standalone binary automatically checks for newer releases before command execution, downloads updates from the official release repository, and seamlessly replaces the binary in-place.
+
+- **Non-Blocking & Fast**: Update checks use a lightweight 2.5-second timeout. If offline or if GitHub is unreachable, the CLI continues executing normally without interruption.
+- **Cache Interval**: Automatic checks are cached for 1 hour to prevent network overhead on rapid successive executions.
+- **Opt-Out**: Pass `--no-update` or set the `SITEMILLS_NO_UPDATE=1` environment variable to disable automatic update checks in CI/CD or air-gapped environments.
 
 ---
 
@@ -294,3 +347,6 @@ sitemills-cli <command> [options]
 - `--indexable`: Enable search engine indexing for the project visibility settings
 - `--no-indexable`: Disable search engine indexing for the project visibility settings
 - `--mock-user <email>`: Impersonate / test as a specific user for data ops in dev environments
+- `--no-update`: Disable automatic update checks for this command invocation
+- `--force`: Force check and apply updates, ignoring local cache TTL
+
