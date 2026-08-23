@@ -7,8 +7,8 @@
     "sitemills-cli": "./bin/sitemills.js"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 0",
-    "obfuscate": "npx javascript-obfuscator bin/sitemills.js --output dist/sitemills.js --compact true --self-defending false --string-array true --string-array-encoding base64 --string-array-threshold 0.75",
+    "test": "node test/updater.test.js",
+    "obfuscate": "npx javascript-obfuscator bin/updater.js --output dist/updater.js --compact true --self-defending false --string-array true --string-array-encoding base64 --string-array-threshold 0.75 && npx javascript-obfuscator bin/sitemills.js --output dist/sitemills.js --compact true --self-defending false --string-array true --string-array-encoding base64 --string-array-threshold 0.75",
     "build": "mkdir -p dist && npm run obfuscate && npx pkg dist/sitemills.js --targets node18-linux-x64,node18-macos-x64,node18-win-x64 --out-path dist/binaries"
   },
   "devDependencies": {
@@ -21,6 +21,14 @@
   ],
   "author": "",
   "license": "ISC",
+  "pkg": {
+    "scripts": [
+      "dist/*.js"
+    ],
+    "assets": [
+      "dist/*.js"
+    ]
+  },
   "engines": {
     "node": ">=12.0.0"
   }
