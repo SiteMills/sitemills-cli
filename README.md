@@ -182,10 +182,11 @@ sitemills-cli <command> [options]
   ```bash
   sitemills-cli seed-db <projectId> <branchId> <dataFile.json>
   ```
-- **data-copy** (or **clone-scope**): Clone all database collections and records from a source environment/scope to a target scope (e.g. from PROD to STAGING).
+- **clone-scope** (or **data-clone** / **data-copy**): Clone all database collections and records from a source environment/scope to a target scope (e.g. from PROD to STAGING).
   ```bash
-  sitemills-cli data-copy <projectId> <sourceScope> <targetScope>
   sitemills-cli clone-scope <projectId> <sourceScope> <targetScope>
+  sitemills-cli data-clone <projectId> <sourceScope> <targetScope>
+  sitemills-cli data-copy <projectId> <sourceScope> <targetScope>
   ```
 - **export**: Export project code from a branch to a local directory.
   ```bash
