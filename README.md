@@ -92,6 +92,36 @@ sitemills-cli compile <projectId> --branch <branchId>
 ```bash
 sitemills-cli deploy <projectId> <branchId> <DEV|STAGING|PROD>
 ```
+
+### Scheduled Jobs & Crons Management
+
+SiteMills supports background scheduled jobs defined in `contracts/jobs.json`. Manage, inspect, trigger, and pause jobs across environments using the `jobs` command suite:
+
+- **jobs list**: List all registered scheduled jobs in an environment with status, next run time, cron schedule, and last execution status.
+  ```bash
+  sitemills-cli jobs list <projectId> <environment> [--json]
+  ```
+- **jobs run**: Trigger an immediate on-demand execution of a scheduled job.
+  ```bash
+  sitemills-cli jobs run <projectId> <environment> <jobName> [--params <jsonParams>]
+  ```
+- **jobs runs**: Inspect recent execution run history, duration, and error logs for a specific job.
+  ```bash
+  sitemills-cli jobs runs <projectId> <environment> <jobName> [--json]
+  ```
+- **jobs pause**: Pause a scheduled job to temporarily stop automated cron triggers.
+  ```bash
+  sitemills-cli jobs pause <projectId> <environment> <jobName> [--reason <reason>]
+  ```
+- **jobs resume**: Resume a paused scheduled job and recalculate the next run timestamp.
+  ```bash
+  sitemills-cli jobs resume <projectId> <environment> <jobName>
+  ```
+- **jobs metrics**: View aggregated execution metrics and concurrency stats for a project.
+  ```bash
+  sitemills-cli jobs metrics <projectId> <environment> [--json]
+  ```
+
 *Example:*
 ```bash
 sitemills-cli deploy gradeprep e4d7df82-24b2-4e3b-97ce-5aa4ba5a79ec DEV
