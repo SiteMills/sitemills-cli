@@ -62,7 +62,28 @@ sitemills-cli login
 
 ## Quickstart: Creating & Deploying a Project
 
-### 1. Import a Local Directory to a New SiteMills Project
+### 1. Initialize a New Project from the Seed Template
+If starting a new application without existing code, bootstrap it directly from the canonical SiteMills project template (includes Preact app shell, backend handlers, PWA manifest, and service worker push notification handlers):
+```bash
+sitemills-cli seed <projectName> [outputDir]
+```
+*Example:*
+```bash
+sitemills-cli seed GradePrep ./gradeprep
+```
+*Output:*
+```
+Seeding project "GradePrep"...
+SUCCESS: Project seeded successfully!
+  Project ID: gradeprep
+  Branch ID:  e4d7df82-24b2-4e3b-97ce-5aa4ba5a79ec
+
+Downloading seeded files to "./gradeprep"...
+  Wrote 11 project files to ./gradeprep/
+```
+
+### 2. Import an Existing Local Directory
+If you already have a local directory of code:
 ```bash
 sitemills-cli import <projectName> <inputDir>
 ```
@@ -77,18 +98,18 @@ SUCCESS: Project imported successfully!
   Branch ID:  e4d7df82-24b2-4e3b-97ce-5aa4ba5a79ec
 ```
 
-### 2. View Branches & Status
+### 3. View Branches & Status
 ```bash
 sitemills-cli list-branches <projectId>
 ```
 
-### 3. Compile Project Code
+### 4. Compile Project Code
 ```bash
 sitemills-cli compile <projectId> --branch <branchId>
 ```
 *Compiles frontend JSX/TSX components (esbuild + Tailwind CSS) and backend TypeScript handlers into the SiteMills V8 isolate runtime.*
 
-### 4. Deploy Branch to an Environment
+### 5. Deploy Branch to an Environment
 ```bash
 sitemills-cli deploy <projectId> <branchId> <DEV|STAGING|PROD>
 ```
@@ -173,7 +194,7 @@ Non-production environments (**DEV**, **STAGING**, and **Branch Previews**) are 
 
 3. **Logged-in SiteMills Users**:
    - If a reviewer or team member is logged into their SiteMills account, they **do not need a preview token**.
-   - Their active session cookie (`USER_AUTH_TOKEN`) authorizes access directly to all permitted project environments.
+   - Their active session cookie (`__Host-USER_AUTH_TOKEN`) authorizes access directly to all permitted project environments.
 
 4. **Production Environments (`PROD`)**:
    - Production URLs (`https://<projectId>.sitemills.com`) are always public and do not require authentication or preview tokens.
@@ -204,7 +225,7 @@ sitemills-cli <command> [options]
   ```bash
   sitemills-cli import <projectName> <inputDir>
   ```
-- **seed**: Seed a local folder from a SiteMills direct project template.
+- **seed**: Seed a new project from the canonical SiteMills project template (with Preact app shell, PWA manifest, and service worker push notification handlers) and optionally download files locally.
   ```bash
   sitemills-cli seed <projectName> [outputDir]
   ```
@@ -405,3 +426,7 @@ The compiled standalone binary automatically checks for newer releases before co
 - `--no-update`: Disable automatic update checks for this command invocation
 - `--force`: Force check and apply updates, ignoring local cache TTL
 
+
+## License & Copyright
+
+Copyright &copy; 2026 SiteMills Inc. All rights reserved.
