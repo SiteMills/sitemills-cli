@@ -85,7 +85,7 @@ X-Developer-Api-Key: <your_api_key>
 Content-Type: application/json
 ```
 
-**Request Body:**
+**Request Body (Custom Files):**
 ```json
 {
   "projectName": "My Portfolio Site",
@@ -97,10 +97,21 @@ Content-Type: application/json
 }
 ```
 
+**Request Body (Seed from Canonical Platform Template):**
+```json
+{
+  "projectName": "My Portfolio Site",
+  "seed": true,
+  "projectStructureType": "DIRECT"
+}
+```
+
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `projectName` | string | **Yes** | Human-readable project name. Used to generate the projectId. |
-| `files` | `Map<String, String>` | **Yes** | Initial file paths → contents. |
+| `seed` | boolean | No | When `true`, automatically scaffolds the project using the canonical SiteMills project template (Preact app shell, backend handlers, contracts, PWA manifest, and service worker push notification handlers). |
+| `projectStructureType` | string | No | Project layout structure, defaults to `DIRECT`. |
+| `files` | `Map<String, String>` | Yes (unless `seed: true`) | Initial file paths → contents. Optional when `seed: true`. |
 
 **Response: `200 OK`**
 ```json
@@ -369,18 +380,36 @@ SiteMills projects use a flat-ish file structure:
 
 | Path Pattern | Domain | Description |
 |-------------|--------|-------------|
-| `app.tsx` | Frontend | Main application entry point |
+| `app.tsx` or `public/app-shell.tsx` | Frontend | Main application entry point |
 | `*.tsx`, `*.ts`, `*.jsx`, `*.js` | Frontend | Components and modules |
 | `styles.css` or `public/styles.css` | Frontend | Global styles (Tailwind processed) |
-| `index.html` | Frontend | HTML shell |
+| `index.html` or `public/index.html` | Frontend | HTML shell |
 | `tailwind.config.json` | Frontend | Tailwind CSS configuration |
-| `server/handlers.ts` | Backend | Server-side request handlers |
+| `public/sw.js` | Frontend / PWA | Service worker handling offline caching, app lifecycle, and Web Push notifications (`push`, `notificationclick`) |
+| `public/manifest.json` | Frontend / PWA | Web App Manifest defining icons, theme colors, and standalone display mode |
+| `server/handlers.ts` or `server/handlers/*.ts` | Backend | Server-side request handlers |
 | `server/tests.ts` | Backend | Server-side test suite |
 | `server/*.ts` | Backend | Any backend TypeScript files |
-| `contracts/*.json` | Backend | API contracts |
+| `contracts/*.json` | Backend | API contracts defining typed interfaces between frontend and backend |
 | `assets/*` | Assets | Images, fonts, etc. (stored as data URIs) |
 
 > **Do NOT include** these in your push (they are platform-managed): `api/*`, `backend-store.js`, `*.js.map`, `*.d.ts`
+
+---
+
+## Progressive Web Apps (PWA) & Push Notifications
+
+SiteMills projects provide built-in Progressive Web App (PWA) capabilities and service worker push notification handling.
+
+### Service Worker (`public/sw.js`)
+When a project is created via `sitemills-cli seed` (or imported with `seed: true`), the default service worker provides:
+- **Offline Caching**: Caches core shell assets (`index.html`, `styles.css`, `manifest.json`, `app-shell.js`) using a stale-while-revalidate strategy.
+- **Web Push Handling**: Listens to browser `push` events and displays notifications using `event.waitUntil(self.registration.showNotification(title, options))`.
+- **Notification Clicks**: The `notificationclick` event focuses an existing open tab or navigates a new window to the target URL.
+
+### Notification Best Practices
+- **Server-Side Dispatch**: Web push notifications must be dispatched from a backend handler, scheduled cron job, or the SiteMills push gateway. Do NOT use `setTimeout` or intervals inside the service worker for delayed reminders, as mobile browsers terminate or freeze service worker threads within 15–30 seconds when the screen turns off or the app is backgrounded.
+- **Delivery Urgency**: The platform push gateway sends notifications with RFC 8030 `Urgency: high` and a 24-hour TTL, ensuring notifications wake devices from low-power states (Android Doze mode and iOS low-power mode).
 
 ---
 
