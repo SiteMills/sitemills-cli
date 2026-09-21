@@ -291,6 +291,16 @@ sitemills-cli <command> [options]
   ```bash
   sitemills-cli set-description <projectId> <description>
   ```
+- **set-tags**: Update or clear project tags used for search and categorization in the marketplace.
+  ```bash
+  sitemills-cli set-tags <projectId> <tag1,tag2,...>
+  # or pass space-separated tags:
+  sitemills-cli set-tags <projectId> tag1 tag2 tag3
+  # or with --tags flag:
+  sitemills-cli set-tags <projectId> --tags "productivity, ai-assistant"
+  # or clear all tags:
+  sitemills-cli set-tags <projectId> --clear
+  ```
 - **upload-media**: Upload a local media file to SiteMills storage.
   ```bash
   sitemills-cli upload-media <projectId> <filePath> [--type <uploadType>]
@@ -417,6 +427,8 @@ The compiled standalone binary automatically checks for newer releases before co
 - `--owner-name <name>`: Owner's name to register during Stripe Connect onboarding
 - `--country <country>`: Business country code to register during Stripe Connect onboarding (default: `US`)
 - `--description <desc>`: Brief description metadata for environment variables
+- `--tags <tags>`: Comma-separated list of tags to associate with the project
+- `--clear`: Remove / clear all tags associated with the project
 - `--banner <id>`: Media ID of the project banner image
 - `--gallery <ids>`: Comma-separated media IDs to add to the project gallery
 - `--video <id>`: Media ID of the project showcase video
