@@ -37,10 +37,22 @@ This registers the `sitemills-cli` command globally on your system.
 
 SiteMills CLI uses OAuth 2.0 with local loopback callback verification for secure authentication.
 
-### How to Log In
+### How to Log In & Out
 
 ```bash
 sitemills-cli login
+```
+
+To end your session and remove locally stored credentials:
+```bash
+sitemills-cli logout
+```
+
+### Inspect & Manage Account
+
+View your current authenticated profile, handle, email, subscription tier, and visibility:
+```bash
+sitemills-cli whoami
 ```
 
 1. **Automatic Browser Launch**: The CLI starts a local loopback server and attempts to open your default browser directly to the SiteMills authorization page.
@@ -212,6 +224,32 @@ sitemills-cli <command> [options]
 - **login**: Authenticate with SiteMills via interactive OAuth callback.
   ```bash
   sitemills-cli login
+  ```
+- **logout**: End the active session and remove locally stored credentials.
+  ```bash
+  sitemills-cli logout
+  ```
+- **whoami** (alias: `account`): Inspect currently authenticated user details, handle, email, and subscription tier.
+  ```bash
+  sitemills-cli whoami
+  ```
+- **check-username**: Check if a username / handle is valid and available.
+  ```bash
+  sitemills-cli check-username <username>
+  ```
+- **set-username**: Change or claim your account username handle.
+  ```bash
+  sitemills-cli set-username <username>
+  ```
+- **set-account** (alias: `update-account`): Update personal profile attributes and public creator profile visibility.
+  ```bash
+  sitemills-cli set-account --name "Alice Smith" --visibility public --city "San Francisco, CA"
+  # or hide your creator profile from the public directory:
+  sitemills-cli set-account --visibility hidden
+  ```
+- **profile**: View creator profile details for any username handle (or yourself if omitted).
+  ```bash
+  sitemills-cli profile [username]
   ```
 - **list**: List all projects owned by or shared with your account.
   ```bash
@@ -424,6 +462,12 @@ The compiled standalone binary automatically checks for newer releases before co
 - `--limit <limit>`: Max documents matched for `run-lua`
 - `--max-write-ops <N>`: Max writes allowed for `run-lua`
 - `--type <type>`: Media upload type for `upload-media` (`APP_MEDIA`, `AGENT_ATTACHMENT`, `CODEBASE_FILE`, `USER_CONTENT`)
+- `--name <name>`: Display name for user account
+- `--username <name>`: Username handle for user account
+- `--visibility <vis>`: Account profile visibility (`public` or `hidden`)
+- `--company <comp>`: Company or organization name
+- `--city <city>`: City / location
+- `--phone <phone>`: Contact phone number
 - `--owner-name <name>`: Owner's name to register during Stripe Connect onboarding
 - `--country <country>`: Business country code to register during Stripe Connect onboarding (default: `US`)
 - `--description <desc>`: Brief description metadata for environment variables
