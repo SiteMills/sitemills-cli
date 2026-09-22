@@ -65,7 +65,7 @@ Provides direct access to execute platform tasks:
 - `sys.project.deployAndTest()`: Build, deploy to sandbox branch, and execute tests.
 - `sys.backend.call(route, payload, userContext)`: Directly invoke a backend TypeScript handler within the isolate workspace with optional mock user permissions.
 
-*For more details, see the [`EXECUTE_SCRIPT_VM_GUIDE.md`](file:///home/apstonybrook/codebase/sitemills-cli/docs/EXECUTE_SCRIPT_VM_GUIDE.md).*
+*For more details, see the [`EXECUTE_SCRIPT_VM_GUIDE.md`](EXECUTE_SCRIPT_VM_GUIDE.md).*
 
 ---
 
@@ -74,27 +74,27 @@ Provides direct access to execute platform tasks:
 When a user's backend handler (`server/handlers.ts`) runs in the sandbox isolate, it is passed a `ctx` object. The `ctx` object acts as the SDK bridge connecting the sandbox code to sitemills platform integrations.
 
 ### SDK Bridge & Provider Design
-Methods invoked on the `ctx` object are intercepted by an internal **SDK Bridge** in `clientisolates`, which parses the integration prefix (e.g., `storage` from `ctx.storage.getUploadMetadata`) and delegates the execution to a registered `IntegrationProvider`.
+Methods invoked on the `ctx` object are intercepted by an internal **SDK Bridge**, which parses the integration prefix (e.g., `storage` from `ctx.storage.getUploadMetadata`) and delegates the execution to a registered `IntegrationProvider`.
 
 ---
 
 ## 4. Integration Support Grid
 
-SiteMills defines a canonical lock-file of integration modules (`integrations.lock.json`). The table below outlines what services are supported, which are enabled inside the isolated backend runtime (`clientisolates`), and where to find their specific documentation:
+SiteMills defines a canonical lock-file of integration modules (`integrations.lock.json`). The table below outlines what services are supported, which are enabled inside the isolated backend runtime, and where to find their specific documentation:
 
 | Integration ID | SDK Prefix | Isolate Runtime? | Frontend? | Documentation Reference |
 |---|---|:---:|:---:|---|
-| **`ai`** | `ctx.ai` | **Yes** | Yes | [`docs/integrations/ctx-ai.md`](file:///home/apstonybrook/codebase/sitemills-cli/docs/integrations/ctx-ai.md) |
-| **`email`** | `ctx.email` | **Yes** | No | [`docs/integrations/ctx-email.md`](file:///home/apstonybrook/codebase/sitemills-cli/docs/integrations/ctx-email.md) |
-| **`env`** | `ctx.env` | **Yes** | No | [`docs/integrations/ctx-env.md`](file:///home/apstonybrook/codebase/sitemills-cli/docs/integrations/ctx-env.md) |
-| **`googlemaps`**| `ctx.googlemaps` | **Yes** | No | [`docs/integrations/ctx-googlemaps.md`](file:///home/apstonybrook/codebase/sitemills-cli/docs/integrations/ctx-googlemaps.md) |
-| **`http`** | `ctx.httpClient` | **Yes** | No | [`docs/integrations/ctx-http.md`](file:///home/apstonybrook/codebase/sitemills-cli/docs/integrations/ctx-http.md) |
-| **`orders`** | `ctx.orders` | **Yes** | Yes | [`docs/integrations/ctx-orders.md`](file:///home/apstonybrook/codebase/sitemills-cli/docs/integrations/ctx-orders.md) |
-| **`p2p`** | `ctx.p2p` | **Yes** | No | [`docs/integrations/ctx-p2p.md`](file:///home/apstonybrook/codebase/sitemills-cli/docs/integrations/ctx-p2p.md) |
-| **`permissions`**| `ctx.permissions`| **Yes** | Yes | [`docs/integrations/ctx-permissions.md`](file:///home/apstonybrook/codebase/sitemills-cli/docs/integrations/ctx-permissions.md) |
-| **`queue`** | `ctx.queue` | **Yes** | No | [`docs/integrations/ctx-queue.md`](file:///home/apstonybrook/codebase/sitemills-cli/docs/integrations/ctx-queue.md) |
-| **`realtime`** | `ctx.realtime` | **Yes** | No | [`docs/integrations/ctx-realtime.md`](file:///home/apstonybrook/codebase/sitemills-cli/docs/integrations/ctx-realtime.md) |
-| **`storage`** | `ctx.storage` | **Yes** | No | [`docs/integrations/ctx-storage.md`](file:///home/apstonybrook/codebase/sitemills-cli/docs/integrations/ctx-storage.md) |
+| **`ai`** | `ctx.ai` | **Yes** | Yes | [`integrations/ctx-ai.md`](integrations/ctx-ai.md) |
+| **`email`** | `ctx.email` | **Yes** | No | [`integrations/ctx-email.md`](integrations/ctx-email.md) |
+| **`env`** | `ctx.env` | **Yes** | No | [`integrations/ctx-env.md`](integrations/ctx-env.md) |
+| **`googlemaps`**| `ctx.googlemaps` | **Yes** | No | [`integrations/ctx-googlemaps.md`](integrations/ctx-googlemaps.md) |
+| **`http`** | `ctx.httpClient` | **Yes** | No | [`integrations/ctx-http.md`](integrations/ctx-http.md) |
+| **`orders`** | `ctx.orders` | **Yes** | Yes | [`integrations/ctx-orders.md`](integrations/ctx-orders.md) |
+| **`p2p`** | `ctx.p2p` | **Yes** | No | [`integrations/ctx-p2p.md`](integrations/ctx-p2p.md) |
+| **`permissions`**| `ctx.permissions`| **Yes** | Yes | [`integrations/ctx-permissions.md`](integrations/ctx-permissions.md) |
+| **`queue`** | `ctx.queue` | **Yes** | No | [`integrations/ctx-queue.md`](integrations/ctx-queue.md) |
+| **`realtime`** | `ctx.realtime` | **Yes** | No | [`integrations/ctx-realtime.md`](integrations/ctx-realtime.md) |
+| **`storage`** | `ctx.storage` | **Yes** | No | [`integrations/ctx-storage.md`](integrations/ctx-storage.md) |
 | **`analytics`** | — | **No** | Yes | *Frontend analytics only. Unsupported in server isolate.* |
 | **`jobs`** | — | **No** | Yes | *WebFE scheduled job dashboard config only. No isolate SDK.* |
 | **`logs`** | — | **No** | Yes | *Dashboard display only. Server handlers use `console.log`.* |
