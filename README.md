@@ -2,29 +2,29 @@
 
 SiteMills CLI Tool for project code management, continuous integration, database seeding, background jobs, sandboxed data operations, and deployment on the SiteMills platform.
 
+> [!IMPORTANT]
+> **Repository Sync & Release Workflow:**
+> This is the internal private source code repository (`sitemills-cli-internal`). The public repository (`sitemills-cli`) contains only the compiled/obfuscated binaries and documentation.
+> To prevent code and documentation divergence, you must sync changes to the public repository whenever this repo is updated:
+> 
+> 1. Commit and push your code updates in this internal repository.
+> 2. Compile the obfuscated binaries:
+>    ```bash
+>    npm install && npm run build
+>    ```
+> 3. Copy the updated `README.md`, `docs/`, and the new binaries from `dist/binaries/` to the public `sitemills-cli` repository.
+> 4. Commit and push the updates in the public repository to release them to users.
+> 
+> See the complete [Release Management & Auto-Update Guide](docs/RELEASES_AND_UPDATES.md) for full instructions.
+
 ## Installation
-
-### Standalone Pre-Compiled Binaries (Recommended)
-
-Download the standalone binary for your operating system from [SiteMills CLI Releases](https://github.com/SiteMills/sitemills-cli/releases):
-
-- **Linux (x64)**: `sitemills-linux`
-- **macOS (x64 / Apple Silicon via Rosetta)**: `sitemills-macos`
-- **Windows (x64)**: `sitemills-win.exe`
-
-#### Quick Install (Linux / macOS):
-
-```bash
-curl -fsSL https://github.com/SiteMills/sitemills-cli/releases/latest/download/sitemills-linux -o /usr/local/bin/sitemills-cli
-chmod +x /usr/local/bin/sitemills-cli
-```
 
 ### From Source
 
-Clone the repository and link globally via npm:
+Clone the repository and link globally:
 
 ```bash
-git clone https://github.com/SiteMills/sitemills-cli.git
+git clone https://github.com/samirpatelgx/sitemills-cli-internal.git sitemills-cli
 cd sitemills-cli
 npm link
 ```
@@ -238,13 +238,17 @@ sitemills-cli <command> [options]
   ```bash
   sitemills-cli export <projectId> [branchId] <outputDir>
   ```
-- **push**: Push local updates to a specific branch on SiteMills. Performs pre-flight validation on `contracts/jobs.json`, `contracts/db.json`, and TypeScript parameter typing.
+- **commit** (or **save-snapshot**): Quickly save a code snapshot to a branch without triggering cloud compilation or tests (~100ms). Automatically saves metadata to `.sitemills/build.json` in the local directory and records the build in `~/.sitemills/builds.json`.
   ```bash
-  sitemills-cli push <projectId> <branchId> <inputDir> [--message <message>]
+  sitemills-cli commit <projectId> <branchId> <inputDir> [--message <message>]
+  ```
+- **push**: Push local updates to a specific branch on SiteMills. Performs pre-flight validation on `contracts/jobs.json`, `contracts/db.json`, TypeScript parameter typing, cloud bundle compilation, and automated tests. Pass `--skip-tests` to bypass testing.
+  ```bash
+  sitemills-cli push <projectId> <branchId> <inputDir> [--message <message>] [--skip-tests]
   ```
 - **compile**: Trigger manual project code compilation for a branch and inspect diagnostics.
   ```bash
-  sitemills-cli compile <projectId> [--branch <branchId>]
+  sitemills-cli compile <projectId> [--branch <branchId>] [--skip-tests]
   ```
 - **deploy**: Deploy a branch to an environment (`DEV`, `STAGING`, or `PROD`).
   ```bash
