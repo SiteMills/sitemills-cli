@@ -2,29 +2,29 @@
 
 SiteMills CLI Tool for project code management, continuous integration, database seeding, background jobs, sandboxed data operations, and deployment on the SiteMills platform.
 
-> [!IMPORTANT]
-> **Repository Sync & Release Workflow:**
-> This is the internal private source code repository (`sitemills-cli-internal`). The public repository (`sitemills-cli`) contains only the compiled/obfuscated binaries and documentation.
-> To prevent code and documentation divergence, you must sync changes to the public repository whenever this repo is updated:
-> 
-> 1. Commit and push your code updates in this internal repository.
-> 2. Compile the obfuscated binaries:
->    ```bash
->    npm install && npm run build
->    ```
-> 3. Copy the updated `README.md`, `docs/`, and the new binaries from `dist/binaries/` to the public `sitemills-cli` repository.
-> 4. Commit and push the updates in the public repository to release them to users.
-> 
-> See the complete [Release Management & Auto-Update Guide](docs/RELEASES_AND_UPDATES.md) for full instructions.
-
 ## Installation
+
+### Standalone Pre-Compiled Binaries (Recommended)
+
+Download the standalone binary for your operating system from [SiteMills CLI Releases](https://github.com/SiteMills/sitemills-cli/releases):
+
+- **Linux (x64)**: `sitemills-linux`
+- **macOS (x64 / Apple Silicon via Rosetta)**: `sitemills-macos`
+- **Windows (x64)**: `sitemills-win.exe`
+
+#### Quick Install (Linux / macOS):
+
+```bash
+curl -fsSL https://github.com/SiteMills/sitemills-cli/releases/latest/download/sitemills-linux -o /usr/local/bin/sitemills-cli
+chmod +x /usr/local/bin/sitemills-cli
+```
 
 ### From Source
 
-Clone the repository and link globally:
+Clone the repository and link globally via npm:
 
 ```bash
-git clone https://github.com/samirpatelgx/sitemills-cli-internal.git sitemills-cli
+git clone https://github.com/SiteMills/sitemills-cli.git
 cd sitemills-cli
 npm link
 ```
@@ -246,7 +246,7 @@ sitemills-cli <command> [options]
   ```bash
   sitemills-cli push <projectId> <branchId> <inputDir> [--message <message>] [--skip-tests]
   ```
-- **compile**: Trigger manual project code compilation for a branch and inspect diagnostics.
+- **compile**: Trigger manual project code compilation for a branch and inspect diagnostics. Pass `--skip-tests` to bypass testing.
   ```bash
   sitemills-cli compile <projectId> [--branch <branchId>] [--skip-tests]
   ```
@@ -467,6 +467,7 @@ The compiled standalone binary automatically checks for newer releases before co
 ## Options & Flags Reference
 
 - `--message <msg>`: Commit message for push (default: `CLI push update`).
+- `--skip-tests`: Bypass automated test suite execution during push and compilation.
 - `--params <json>`: JSON payload parameters for on-demand job execution (`jobs run`).
 - `--reason <reason>`: Reason message when pausing a background job (`jobs pause`).
 - `--branch <branch>`: Target branch ID or branch data scope.
