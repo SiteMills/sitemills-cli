@@ -4,32 +4,62 @@ SiteMills CLI Tool for project code management, continuous integration, database
 
 ## Installation
 
-### Standalone Pre-Compiled Binaries (Recommended)
+Pick whichever fits your setup. All of them install the same `sitemills-cli` command.
 
-Download the standalone binary for your operating system from [SiteMills CLI Releases](https://github.com/SiteMills/sitemills-cli/releases):
+### macOS / Linux: install script (recommended)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/SiteMills/sitemills-cli/main/install.sh | sh
+```
+
+Installs to `/usr/local/bin` if it's writable without `sudo`, otherwise `~/.local/bin`. The download is verified against the release's `SHA256SUMS`. The binary keeps itself up to date.
+
+### Windows: install script (recommended)
+
+In PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/SiteMills/sitemills-cli/main/install.ps1 | iex
+```
+
+Installs to `%LOCALAPPDATA%\Programs\sitemills-cli` and adds it to your user `PATH`. No admin rights needed. The binary keeps itself up to date.
+
+### Homebrew (macOS / Linux)
+
+```bash
+brew install sitemills/tap/sitemills-cli
+```
+
+Upgrade with `brew upgrade sitemills-cli`.
+
+### Scoop (Windows)
+
+```powershell
+scoop bucket add sitemills https://github.com/SiteMills/scoop-bucket
+scoop install sitemills-cli
+```
+
+Upgrade with `scoop update sitemills-cli`.
+
+### npm (any OS with Node.js 18+)
+
+```bash
+npm install -g sitemills-cli
+```
+
+Upgrade with `npm install -g sitemills-cli@latest`.
+
+### Manual download
+
+Download the binary for your platform from [Releases](https://github.com/SiteMills/sitemills-cli/releases/latest), rename it to `sitemills-cli` (`sitemills-cli.exe` on Windows), and put it on your `PATH`:
 
 - **Linux (x64)**: `sitemills-linux`
-- **macOS (x64 / Apple Silicon via Rosetta)**: `sitemills-macos`
+- **macOS (Intel, or Apple Silicon via Rosetta 2)**: `sitemills-macos`
 - **Windows (x64)**: `sitemills-win.exe`
 
-#### Quick Install (Linux / macOS):
+Verify it against `SHA256SUMS` from the same release.
 
-```bash
-curl -fsSL https://github.com/SiteMills/sitemills-cli/releases/latest/download/sitemills-linux -o /usr/local/bin/sitemills-cli
-chmod +x /usr/local/bin/sitemills-cli
-```
-
-### From Source
-
-Clone the repository and link globally via npm:
-
-```bash
-git clone https://github.com/SiteMills/sitemills-cli.git
-cd sitemills-cli
-npm link
-```
-
-This registers the `sitemills-cli` command globally on your system.
+> **Note:** This repository holds the CLI's documentation and installers, not an installable package. Cloning it does not install the CLI; use one of the options above.
 
 ---
 
@@ -96,6 +126,11 @@ sitemills-cli list-branches <projectId>
 ```
 
 ### 3. Compile Project Code
+Check local changes without saving or deploying anything:
+```bash
+sitemills-cli check <projectId> <branchId> <inputDir>
+```
+Recompile what is already on the branch:
 ```bash
 sitemills-cli compile <projectId> --branch <branchId>
 ```
@@ -238,13 +273,17 @@ sitemills-cli <command> [options]
   ```bash
   sitemills-cli export <projectId> [branchId] <outputDir>
   ```
-- **commit** (or **save-snapshot**): Quickly save a code snapshot to a branch without triggering cloud compilation or tests (~100ms). Automatically saves metadata to `.sitemills/build.json` in the local directory and records the build in `~/.sitemills/builds.json`.
+- **commit** (or **save-snapshot**): Quickly save a code snapshot to a branch without triggering cloud compilation or tests (~100ms). Only files that differ from the remote branch are uploaded, and remote files missing locally are deleted (pass `--no-prune` to keep them). Automatically saves metadata to `.sitemills/build.json` in the local directory and records the build in `~/.sitemills/builds.json`.
   ```bash
-  sitemills-cli commit <projectId> <branchId> <inputDir> [--message <message>]
+  sitemills-cli commit <projectId> <branchId> <inputDir> [--message <message>] [--no-prune]
   ```
-- **push**: Push local updates to a specific branch on SiteMills. Performs pre-flight validation on `contracts/jobs.json`, `contracts/db.json`, TypeScript parameter typing, cloud bundle compilation, and automated tests. Pass `--skip-tests` to bypass testing.
+- **check**: Compile your local changes against a branch **without saving or deploying anything**. Runs the same frontend and backend compilation as `push`, but creates no snapshot or version, leaves the live branch untouched, and runs no sandbox tests. Exits with code 1 if compilation fails. Use it for a fast edit-compile loop, then `push` once it passes.
   ```bash
-  sitemills-cli push <projectId> <branchId> <inputDir> [--message <message>] [--skip-tests]
+  sitemills-cli check <projectId> <branchId> <inputDir> [--no-prune]
+  ```
+- **push**: Push local updates to a specific branch on SiteMills. Only files that differ from the remote branch are uploaded (compared by content hash), and remote files missing locally are deleted (pass `--no-prune` to keep them). If nothing changed, push exits without recompiling. Performs pre-flight validation on `contracts/jobs.json`, `contracts/db.json`, TypeScript parameter typing, cloud bundle compilation, and automated tests. Pass `--skip-tests` to bypass testing.
+  ```bash
+  sitemills-cli push <projectId> <branchId> <inputDir> [--message <message>] [--skip-tests] [--no-prune]
   ```
 - **compile**: Trigger manual project code compilation for a branch and inspect diagnostics. Pass `--skip-tests` to bypass testing.
   ```bash
@@ -456,11 +495,20 @@ Manage background and scheduled jobs defined in `contracts/jobs.json` and implem
 
 ## Automatic Updates
 
-The compiled standalone binary automatically checks for newer releases before command execution, downloads updates from the official release repository, and seamlessly replaces the binary in-place.
+How the CLI stays current depends on how you installed it:
 
-- **Non-Blocking & Fast**: Update checks use a lightweight 2.5-second timeout. If offline or if GitHub is unreachable, the CLI continues executing normally without interruption.
-- **Cache Interval**: Automatic checks are cached for 1 hour to prevent network overhead on rapid successive executions.
-- **Opt-Out**: Pass `--no-update` or set the `SITEMILLS_NO_UPDATE=1` environment variable to disable automatic update checks in CI/CD or air-gapped environments.
+| Installed with | How it updates |
+|---|---|
+| Install script or manual download | Updates itself automatically before running a command |
+| Homebrew | Tells you when a new version is out; run `brew upgrade sitemills-cli` |
+| Scoop | Tells you when a new version is out; run `scoop update sitemills-cli` |
+| npm | Tells you when a new version is out; run `npm install -g sitemills-cli@latest` |
+
+`sitemills-cli version` shows your version, how it was installed, and whether an update is available. `sitemills-cli update` upgrades a self-updating install immediately.
+
+- **Non-blocking & fast:** checks use a 2.5-second timeout. If you're offline or GitHub is unreachable, the command runs normally.
+- **Cached:** checks run at most once an hour.
+- **Opt out:** pass `--no-update` or set `SITEMILLS_NO_UPDATE=1`. Checks are also skipped when the `CI` environment variable is set.
 
 ---
 

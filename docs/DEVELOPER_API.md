@@ -220,8 +220,8 @@ Content-Type: application/json
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `branchId` | string | **Yes** | Target branch to update (from import or export response). |
-| `files` | `Map<String, String>` | **Yes** | Changed/new file paths → contents. Only include files that were modified or added. |
-| `deletedFiles` | `string[]` | No | File paths to remove from the project. |
+| `files` | `Map<String, String>` | **Yes**, unless `deletedFiles` is non-empty | Changed/new file paths → contents. Only include files that were modified or added. |
+| `deletedFiles` | `string[]` | No | File paths to remove from the project. A request may contain only deletions. |
 | `message` | string | No | Description of the change (stored in version history). |
 
 **Response: `200 OK`**
@@ -269,13 +269,61 @@ Content-Type: application/json
 
 | Code | Reason |
 |------|--------|
-| `400` | Empty files map, or missing branchId |
+| `400` | Both `files` and `deletedFiles` are empty, or missing branchId |
 | `401` | Invalid or missing API key |
 | `403` | Project was not created via the Developer API |
 | `404` | Project not found |
 | `409` | A workflow is currently running on this branch (cannot push while agent is active) |
 
-> **Key:** Files are persisted even if compilation fails. The agent can read the structured errors and push a corrected version.
+> **Key:** Files are persisted even if compilation fails. The agent can read the structured errors and push a corrected version. To catch errors *before* persisting anything, use the [Check endpoint](#3b-check-compile-only-no-save-no-deploy).
+
+---
+
+### 3a. File Manifest (What Changed?)
+
+Returns a SHA-256 hash for every file on the branch, without the file contents. Compare it with hashes of your local files to find out which files to send to push, and which remote files no longer exist locally, without downloading the whole project.
+
+```
+GET /api/v1/agent/projects/{projectId}/manifest?branchId={branchId}
+```
+
+**Response: `200 OK`**
+```json
+{
+  "branchId": "a1b2c3d4-...",
+  "files": {
+    "app.tsx": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+    "public/logo.png": "60303ae22b998861bce3b28f33eec1be758a213c86c93c076dbe9f558c11c752"
+  }
+}
+```
+
+Each hash is the lowercase hex SHA-256 of the file's content string encoded as UTF-8, exactly as it was sent in `files` (binary files are hashed as their `data:` URI string).
+
+---
+
+### 3b. Check (Compile Only, No Save, No Deploy)
+
+Compiles your changes against the current branch state **without saving or deploying anything**. The server applies `files` and `deletedFiles` to the branch in memory and runs the same frontend and backend compilation as push. It creates no snapshot or version, does not touch the live branch, and runs no sandbox tests.
+
+```
+POST /api/v1/agent/projects/{projectId}/check
+```
+
+**Request Body:** same shape as push (`branchId`, `files`, `deletedFiles`). Both maps may be empty to check the current branch state as is.
+
+**Response: `200 OK`**
+```json
+{
+  "success": false,
+  "message": "❌ Frontend compilation failed:\n  app.tsx:42:5: ...",
+  "structuredErrors": [
+    { "domain": "FRONTEND", "file": "app.tsx", "line": 42, "column": 5, "message": "..." }
+  ]
+}
+```
+
+`success` is `true` only when both frontend and backend compile.
 
 ---
 
@@ -344,6 +392,9 @@ cat /tmp/sitemills-project/project.json | jq -r '.files | to_entries[] | @base64
 
 ```bash
 # Edit files locally with your agent...
+
+# Optional: compile without saving anything first
+#   POST $SM_BASE/api/v1/agent/projects/$PROJECT_ID/check  (same body as push)
 
 # Push only changed files
 curl -s -X POST \
@@ -467,11 +518,12 @@ Use these for precise error correction without guessing.
 
 1. **Create once, push many.** Import creates the project; use push for all subsequent changes.
 2. **Minimize full pulls.** Only call `/export` at the start of a session or when state is known to be stale.
-3. **Push small deltas.** Only include files that actually changed. The API diffs against the previous snapshot internally.
-4. **Read structured errors.** Use `structuredErrors` rather than parsing the human-readable `message` string.
-5. **Use the `message` field** in push requests to document what changed — this appears in version history.
-6. **Handle 409 gracefully.** If you get a conflict, wait for the running workflow to finish, then refresh and retry.
-7. **Save your branchId.** It's returned in import and export responses — you need it for every push.
+3. **Push small deltas.** Only include files that actually changed. Use `GET /manifest` to find them by hash instead of re-downloading the project with `/export`.
+4. **Check before you push.** `POST /check` returns the same compiler diagnostics as push without creating a version or deploying.
+5. **Read structured errors.** Use `structuredErrors` rather than parsing the human-readable `message` string.
+6. **Use the `message` field** in push requests to document what changed — this appears in version history.
+7. **Handle 409 gracefully.** If you get a conflict, wait for the running workflow to finish, then refresh and retry.
+8. **Save your branchId.** It's returned in import and export responses — you need it for every push.
 
 ---
 
@@ -481,6 +533,8 @@ Use these for precise error correction without guessing.
 |--------|--------|----------|
 | Create project | `POST` | `/api/v1/agent/projects/import` |
 | Pull full project | `GET` | `/api/v1/agent/projects/{id}/export?branchId=...` |
+| File hashes (manifest) | `GET` | `/api/v1/agent/projects/{id}/manifest?branchId=...` |
+| Compile-only check | `POST` | `/api/v1/agent/projects/{id}/check` |
 | Push changed files | `POST` | `/api/v1/agent/projects/{id}/push` |
 | Refresh (re-pull) | `GET` | `/api/v1/agent/projects/{id}/export?branchId=...` |
 | Get Env Vars | `GET` | `/api/v1/agent/projects/{id}/env?environment=...` |
