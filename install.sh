@@ -44,10 +44,11 @@ case "$os" in
         esac
         ;;
     Darwin)
-        asset="sitemills-macos"
-        if [ "$arch" = "arm64" ] && ! /usr/bin/pgrep -q oahd 2>/dev/null; then
-            echo "note: on Apple Silicon this build runs under Rosetta 2. If it is not installed, run:" >&2
-            echo "      softwareupdate --install-rosetta --agree-to-license" >&2
+        # A shell running under Rosetta reports x86_64; still install the native build.
+        if [ "$arch" = "arm64" ] || [ "$(sysctl -n sysctl.proc_translated 2>/dev/null)" = "1" ]; then
+            asset="sitemills-macos-arm64"
+        else
+            asset="sitemills-macos"
         fi
         ;;
     *)

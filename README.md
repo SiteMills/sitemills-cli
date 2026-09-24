@@ -54,7 +54,8 @@ Upgrade with `npm install -g sitemills-cli@latest`.
 Download the binary for your platform from [Releases](https://github.com/SiteMills/sitemills-cli/releases/latest), rename it to `sitemills-cli` (`sitemills-cli.exe` on Windows), and put it on your `PATH`:
 
 - **Linux (x64)**: `sitemills-linux`
-- **macOS (Intel, or Apple Silicon via Rosetta 2)**: `sitemills-macos`
+- **macOS (Apple Silicon)**: `sitemills-macos-arm64`
+- **macOS (Intel)**: `sitemills-macos`
 - **Windows (x64)**: `sitemills-win.exe`
 
 Verify it against `SHA256SUMS` from the same release.
