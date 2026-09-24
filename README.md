@@ -104,47 +104,39 @@ SiteMills apps are built on declarative contracts, automatic RPC discovery, sand
 
 ---
 
-## Quickstart: Creating & Deploying a Project
+## Quickstart
 
-### 1. Import a Local Directory to a New SiteMills Project
 ```bash
-sitemills-cli import <projectName> <inputDir>
-```
-*Example:*
-```bash
-sitemills-cli import GradePrep scratch/grade1-superstars
-```
-*Output:*
-```text
-SUCCESS: Project imported successfully!
-  Project ID: gradeprep
-  Branch ID:  e4d7df82-24b2-4e3b-97ce-5aa4ba5a79ec
+sitemills-cli login                    # 1. sign in through your browser
+sitemills-cli list                     # 2. find your app's ID
+sitemills-cli export <projectId>       # 3. download it into ./<projectId>
+cd <projectId>
+# 4. edit the files, then:
+sitemills-cli check                    #    compile your changes without saving anything
+sitemills-cli push                     #    upload your changes and update the branch preview
+sitemills-cli deploy prod              # 5. go live (or dev / staging)
 ```
 
-### 2. View Branches & Status
+`export` downloads the app's **Working Draft** and links the folder to it by writing `.sitemills/project.json`. Every command run inside that folder (`check`, `push`, `commit`, `deploy`) uses the link, so you never type IDs. From outside the folder, pass its path instead: `sitemills-cli push ./my-app`.
+
+- The `.sitemills/` folder is never uploaded, and it holds no secrets (your login token lives in `~/.sitemills`), so it's fine to commit it to your own git repo.
+- Need a specific branch or folder name? `sitemills-cli export <projectId> <branchId> <outputDir>`.
+- Every folder command also accepts the IDs explicitly: `sitemills-cli push <projectId> <branchId> <dir>`.
+
+### Starting from your own code
+
 ```bash
-sitemills-cli list-branches <projectId>
+sitemills-cli import "My App" ./my-folder   # creates the app and links ./my-folder to it
+cd my-folder
+sitemills-cli push
 ```
 
-### 3. Compile Project Code
-Check local changes without saving or deploying anything:
-```bash
-sitemills-cli check <projectId> <branchId> <inputDir>
-```
-Recompile what is already on the branch:
+### Recompile without local changes
+
 ```bash
 sitemills-cli compile <projectId> --branch <branchId>
 ```
 *Compiles frontend JSX/TSX components (esbuild + Tailwind CSS) and backend TypeScript handlers into the SiteMills V8 isolate runtime.*
-
-### 4. Deploy Branch to an Environment
-```bash
-sitemills-cli deploy <projectId> <branchId> <DEV|STAGING|PROD>
-```
-*Example:*
-```bash
-sitemills-cli deploy gradeprep e4d7df82-24b2-4e3b-97ce-5aa4ba5a79ec DEV
-```
 
 ---
 
@@ -270,29 +262,31 @@ sitemills-cli <command> [options]
   ```bash
   sitemills-cli seed <projectName> [outputDir]
   ```
-- **export**: Export project code from a branch to a local directory.
+- **Folder commands** (`check`, `push`, `commit`, `deploy`): `[dir]` defaults to the current folder and must be a folder created by `export` or `import`. You can always pass `<projectId> <branchId> <dir>` instead.
+- **export**: Download an app's code into a folder and link the folder to the app, so `check`, `push`, `commit`, and `deploy` work inside it without IDs.
   ```bash
-  sitemills-cli export <projectId> [branchId] <outputDir>
+  sitemills-cli export <projectId> [outputDir]              # Working Draft into ./<projectId> by default
+  sitemills-cli export <projectId> <branchId> <outputDir>
   ```
 - **commit** (or **save-snapshot**): Quickly save a code snapshot to a branch without triggering cloud compilation or tests (~100ms). Only files that differ from the remote branch are uploaded, and remote files missing locally are deleted (pass `--no-prune` to keep them). Automatically saves metadata to `.sitemills/build.json` in the local directory and records the build in `~/.sitemills/builds.json`.
   ```bash
-  sitemills-cli commit <projectId> <branchId> <inputDir> [--message <message>] [--no-prune]
+  sitemills-cli commit [dir] [--message <message>] [--no-prune]
   ```
 - **check**: Compile your local changes against a branch **without saving or deploying anything**. Runs the same frontend and backend compilation as `push`, but creates no snapshot or version, leaves the live branch untouched, and runs no sandbox tests. Exits with code 1 if compilation fails. Use it for a fast edit-compile loop, then `push` once it passes.
   ```bash
-  sitemills-cli check <projectId> <branchId> <inputDir> [--no-prune]
+  sitemills-cli check [dir] [--no-prune]
   ```
 - **push**: Push local updates to a specific branch on SiteMills. Only files that differ from the remote branch are uploaded (compared by content hash), and remote files missing locally are deleted (pass `--no-prune` to keep them). If nothing changed, push exits without recompiling. Performs pre-flight validation on `contracts/jobs.json`, `contracts/db.json`, TypeScript parameter typing, cloud bundle compilation, and automated tests. Pass `--skip-tests` to bypass testing.
   ```bash
-  sitemills-cli push <projectId> <branchId> <inputDir> [--message <message>] [--skip-tests] [--no-prune]
+  sitemills-cli push [dir] [--message <message>] [--skip-tests] [--no-prune]
   ```
 - **compile**: Trigger manual project code compilation for a branch and inspect diagnostics. Pass `--skip-tests` to bypass testing.
   ```bash
   sitemills-cli compile <projectId> [--branch <branchId>] [--skip-tests]
   ```
-- **deploy**: Deploy a branch to an environment (`DEV`, `STAGING`, or `PROD`).
+- **deploy**: Deploy a branch to an environment (`dev`, `staging`, or `prod`).
   ```bash
-  sitemills-cli deploy <projectId> <branchId> <environment>
+  sitemills-cli deploy [dir] <dev|staging|prod>
   ```
 - **list-branches**: List all development branches for a project, including active deployed environments.
   ```bash
