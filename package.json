@@ -1,35 +1,6 @@
 {
   "name": "sitemills-cli",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "SiteMills CLI Tool - Project Code Management on the SiteMills Platform",
-  "main": "dist/sitemills.js",
-  "bin": {
-    "sitemills-cli": "./dist/sitemills.js"
-  },
-  "scripts": {
-    "test": "node test/updater.test.js && node test/diagnostics_and_help.test.js",
-    "obfuscate": "npx -y javascript-obfuscator bin/updater.js --output dist/updater.js --compact true --self-defending false --string-array true --string-array-encoding base64 --string-array-threshold 0.75 --reserved-strings 'updater' && npx -y javascript-obfuscator bin/sitemills.js --output dist/sitemills.js --compact true --self-defending false --string-array true --string-array-encoding base64 --string-array-threshold 0.75 --reserved-strings 'updater'",
-    "build": "mkdir -p dist && npm run obfuscate && npx -y pkg dist/sitemills.js --targets node18-linux-x64,node18-macos-x64,node18-win-x64 --out-path dist/binaries"
-  },
-  "devDependencies": {
-    "javascript-obfuscator": "^4.1.1",
-    "pkg": "^5.8.1"
-  },
-  "keywords": [
-    "sitemills",
-    "cli"
-  ],
-  "author": "",
-  "license": "ISC",
-  "pkg": {
-    "scripts": [
-      "dist/*.js"
-    ],
-    "assets": [
-      "dist/*.js"
-    ]
-  },
-  "engines": {
-    "node": ">=12.0.0"
-  }
+  "private": true
 }

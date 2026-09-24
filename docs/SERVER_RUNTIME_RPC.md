@@ -54,20 +54,39 @@ export async function createTournament(ctx: any, params: any) {
 }
 ```
 
-#### Pattern B: The `routes` Object
+#### Pattern B: Scoped Public RPCs via `routes` Object (Recommended for Files with Helpers)
+
+When a file defines an explicit `routes` object, **ONLY** the functions inside `routes` are registered into the global RPC routing table. Other top-level exports in the file (such as shared calculations, formatting utilities, or data transformers) remain module-internal helpers and are **NOT** registered as public RPC endpoints.
 
 ```typescript
-// server/handlers/admin_service.ts
+// server/handlers/tournament_service.ts
 
+// 1. Internal module helpers (can be exported and imported by other files without global RPC collision)
+export function formatTournamentScore(score: number): string {
+  return score.toFixed(1);
+}
+
+// 2. Public RPC routes exposed to the client
 export const routes = {
-  resetLeaderboard: async (ctx: any, params: any) => {
-    // ...
+  getTournament: async (ctx: any, params: { tournamentId: string }) => {
+    const tournament = await ctx.db.collection('Tournaments').findOne({ _id: params.tournamentId });
+    if (!tournament) throw new Error('Tournament not found');
+    return tournament;
   },
-  archiveSeason: async (ctx: any, params: any) => {
+  createTournament: async (ctx: any, params: any) => {
     // ...
   }
 };
 ```
+
+> [!TIP]
+> **Pure Utility Files (Zero Public RPC Routes)**:
+> If a file under `server/handlers/` or `server/` contains shared helper functions but should NOT expose any public RPC routes, declare an empty `routes` object:
+> ```typescript
+> export const routes = {};
+> export function sharedHelperA() { ... }
+> export function sharedHelperB() { ... }
+> ```
 
 ### 2.3 RPC Endpoint Routing & Aliasing
 
