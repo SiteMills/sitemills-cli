@@ -35,13 +35,17 @@ jobs:
     steps:
       - name: Wait for the draft release assets
         run: |
+          # Only download once both files are fully uploaded; a half-uploaded asset fails the checksum.
           for i in $(seq 1 60); do
-            if gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p "$ASSET" -p SHA256SUMS -D rel --clobber 2>/dev/null; then
+            ready=$(gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json assets \
+              --jq "[.assets[] | select((.name == \"$ASSET\" or .name == \"SHA256SUMS\") and .state == \"uploaded\")] | length" 2>/dev/null || echo 0)
+            if [ "$ready" = "2" ]; then
+              gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p "$ASSET" -p SHA256SUMS -D rel --clobber
               exit 0
             fi
             sleep 10
           done
-          echo "::error::Assets for $TAG did not appear on the release within 10 minutes"
+          echo "::error::Assets for $TAG were not fully uploaded within 10 minutes"
           exit 1
 
       - name: Verify checksum
