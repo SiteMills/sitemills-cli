@@ -148,7 +148,7 @@ SiteMills clearly distinguishes between the **Platform Management Dashboard** an
 |---|---|---|
 | **Production Live Application (`PROD`)** | `https://<projectId>.sitemills.com` | `https://gradeprep.sitemills.com` |
 | **Staging Live Application (`STAGING`)** | `https://<projectId>-staging.sitemills.com` | `https://gradeprep-staging.sitemills.com` |
-| **Development Live Application (`DEV`)** | `https://<projectId>-dev.dev.sitemills.com` | `https://gradeprep-dev.dev.sitemills.com` |
+| **Development Live Application (`DEV`)** | `https://<projectId>-dev.sitemills.com` | `https://gradeprep-dev.sitemills.com` |
 | **Branch Preview URL** | `https://<projectId>--<branchId>.sitemills.com/?preview_token=...` | `https://gradeprep--e4d7df82-24b2-4e3b-97ce-5aa4ba5a79ec.sitemills.com` |
 | **Platform Project Console / IDE** | `https://sitemills.com/project/<projectId>` | `https://sitemills.com/project/gradeprep` |
 | **Project Planning Board** | `https://sitemills.com/project/<projectId>/planning` | `https://sitemills.com/project/gradeprep/planning` |
@@ -156,7 +156,7 @@ SiteMills clearly distinguishes between the **Platform Management Dashboard** an
 
 > [!WARNING]
 > **Important URL Distinction:**
-> - **Live Deployed Websites**: Web applications deployed to SiteMills are hosted on subdomains: `https://<projectId>.sitemills.com` for Production, `https://<projectId>-staging.sitemills.com` for Staging, and `https://<projectId>-dev.dev.sitemills.com` for Dev.
+> - **Live Deployed Websites**: Web applications deployed to SiteMills are hosted on subdomains: `https://<projectId>.sitemills.com` for Production, `https://<projectId>-staging.sitemills.com` for Staging, and `https://<projectId>-dev.sitemills.com` for Dev.
 > - **Platform Console Dashboard**: The web dashboard is located at `https://sitemills.com/project/<projectId>` (singular `/project/`, **not** plural `/projects/`). Never link to `https://sitemills.com/projects/<projectId>` as that is an internal API route prefix (`/api/v1/projects/...`) and will fail to load in the browser.
 
 ## Preview Access Tokens & Non-Production Environments
