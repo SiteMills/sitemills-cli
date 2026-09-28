@@ -34,8 +34,6 @@ This API enables a **create → pull → edit → push delta → compile/deploy*
 
 | Environment | Base URL |
 |------------|---------|
-| Local dev  | `http://localhost:8093` |
-| Dev cluster | `https://agent.dev.sitemills.com` |
 | Production | `https://agent.sitemills.com` |
 
 All endpoints live under the SiteMills Developer API.
@@ -350,7 +348,7 @@ This is the same as endpoint #2. The response always reflects the **current HEAD
 
 ```bash
 export SM_API_KEY="<your-developer-api-key>"
-export SM_BASE="http://localhost:8093"
+export SM_BASE="https://agent.sitemills.com"
 
 # Create a new project
 IMPORT_RESPONSE=$(curl -s -X POST \
