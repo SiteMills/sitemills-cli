@@ -102,11 +102,13 @@ export async function syncPartnerStatus(ctx, { partnerId }) {
 - Keep timeouts explicit for slow/critical integrations.
 - Read API tokens from `ctx.env` (never hardcode secrets).
 - Check `result.ok` and throw explicit errors on non-2xx responses.
+- Let `ctx.httpClient` compute `Content-Length` and `Host` automatically; do not pass hop-by-hop headers manually.
+- Use regex or string manipulation for URL parsing (global `new URL()` is not polyfilled in the sandbox).
 
 ## Do Not Do This
 
 - `import http from 'http'`
 - `import https from 'https'`
 - `require('net')`, `require('dns')`, `require('undici')`
-
-These are blocked by sandbox policy. Use `ctx.httpClient`.
+- Passing hop-by-hop headers: `headers: { 'Content-Length': '...', 'Host': '...', 'Connection': '...' }` (rejected by sandbox policy).
+- Calling `new URL(...)` in backend handlers.
