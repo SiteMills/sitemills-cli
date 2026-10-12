@@ -94,6 +94,7 @@ SiteMills defines a canonical lock-file of integration modules (`integrations.lo
 | **`permissions`**| `ctx.permissions`| **Yes** | Yes | [`integrations/ctx-permissions.md`](integrations/ctx-permissions.md) |
 | **`queue`** | `ctx.queue` | **Yes** | No | [`integrations/ctx-queue.md`](integrations/ctx-queue.md) |
 | **`realtime`** | `ctx.realtime` | **Yes** | No | [`integrations/ctx-realtime.md`](integrations/ctx-realtime.md) |
+| **`sms`** | `ctx.sms` | **Yes** | No | [`integrations/ctx-sms.md`](integrations/ctx-sms.md) |
 | **`storage`** | `ctx.storage` | **Yes** | No | [`integrations/ctx-storage.md`](integrations/ctx-storage.md) |
 | **`analytics`** | — | **No** | Yes | *Frontend analytics only. Unsupported in server isolate.* |
 | **`jobs`** | — | **No** | Yes | *Platform console scheduled job dashboard config only. No isolate SDK.* |
@@ -110,6 +111,7 @@ SiteMills defines a canonical lock-file of integration modules (`integrations.lo
 - **Durable Storage (`ctx.storage`)**: Write files to cloud buckets, validate metadata, and download blobs.
 - **Permissions RBAC (`ctx.permissions`)**: Check if an actor is authorized to perform specific resource-level actions.
 - **Background Tasks (`ctx.queue`)**: Schedule delayed workflows or defer compute-heavy actions.
+- **SMS & Text Messaging (`ctx.sms`)**: Send transactional notifications, OTP verification codes, and alerts to mobile numbers via a dedicated toll-free number (+1-866-645-5702). Supports delivery status webhooks and inbound reply tracking.
 
 
 ---

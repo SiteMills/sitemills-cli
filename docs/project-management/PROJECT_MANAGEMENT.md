@@ -85,9 +85,10 @@ At the top and sidebar of every project view:
 - **Deploy Trigger**: Push the active branch to a selected environment target.
 
 ### 💳 Billing Tab
-- **Plan Subscriptions**: View features across Free, Basic, Advanced, and Ultra tiers.
-- **Credit Store**: Purchase top-up packets of Build or Runtime credits.
+- **Plan Subscriptions**: View features across Free, Basic, Advanced, and Ultra tiers. See [docs/platform/pricing-and-plans.md](../platform/pricing-and-plans.md) for complete resource quotas and tier pricing matrix.
+- **Credit Store**: Purchase top-up packets of Build or Runtime credits. See [docs/platform/dashboard-credits-and-limits.md](../platform/dashboard-credits-and-limits.md).
 - **Transaction Logs**: Export invoices for past subscription renewals and top-ups.
+- **Rate Modifications & Policies**: Free tier allowances may be modified, throttled, or discontinued at any time. Active paid subscriptions require at least 30 days' advance notice before rate increases or quota reductions take effect on recurring renewals under our [Terms of Service](../platform/terms-of-service.md).
 
 ### 🛍️ Payments Tab
 - **Storefront Dashboard**: Displays sales charts, total transaction volumes, and average order values.
