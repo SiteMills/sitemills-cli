@@ -1,6 +1,6 @@
 {
   "name": "sitemills-cli",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "SiteMills CLI Tool - Project Code Management on the SiteMills Platform",
   "private": true
 }
