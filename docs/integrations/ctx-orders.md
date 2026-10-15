@@ -9,6 +9,7 @@ Use this when your app needs to:
 - Look up a checkout session by `sessionId` to continue post-checkout fulfillment.
 - Onboard third-party users/sub-merchants (like landlords or vendors) dynamically to their own Stripe accounts.
 - Route payouts dynamically to different bank accounts per transaction using the custom `connectedAccountId` override.
+- Let subscribers view, cancel (at period end), or manage billing for a subscription created through checkout.
 
 ## Single-Account vs. Multi-Tenant Routing Models
 
@@ -23,6 +24,23 @@ The platform supports two main routing architectures:
    - **How it works**: Individual users/sub-merchants onboard via `ctx.orders.createAdHocOnboardingLink(...)`. You save their generated `connectedAccountId` in your application database. During checkout, you retrieve this ID and pass it as the `connectedAccountId` property in `ctx.orders.checkout(...)` to route that specific transaction directly to their bank account.
 
 ## Methods
+
+### Connected subscription management
+
+```typescript
+const subscription = await ctx.orders.getSubscription({ sessionId: savedCheckoutSessionId });
+const canceled = await ctx.orders.cancelSubscription({ sessionId: savedCheckoutSessionId });
+const { portalUrl } = await ctx.orders.createBillingPortal({
+  sessionId: savedCheckoutSessionId,
+  returnUrl: '/#workspace?billing=managed'
+});
+```
+
+Authenticate and authorize the caller against your persisted billing record **before** using these methods. Do not accept arbitrary session IDs directly from clients. The runtime derives project, scope and environment from the request; passing `projectId`, `connectedAccountId`, `subscriptionId` or `customerId` overrides is rejected. The platform verifies the original order, checkout metadata and customer, using the connected account that was originally charged.
+
+Cancellation sets Stripe `cancel_at_period_end=true` without proration; it never immediately deletes the subscription. Repeated requests are safe. Return fields include `status`, `cancelAtPeriodEnd`, `currentPeriodEnd`, `paidThrough`, `serviceUntil`, `endedAt`, `keyMode`, `plans`, `invoices`, and `receiptsAvailable`. `paidThrough` is based on paid subscription invoice lines, not simply subscription status. Missing receipt data must not be treated as proof of payment; cancellation can succeed even if invoice retrieval fails.
+
+Plan `amountMinor` and invoice `amountPaidMinor` use Stripe minor units (USD cents), unlike checkout `unitAmount` and checkout-session `amountTotal` which use major units. The response includes up to 100 recent invoices; the Stripe billing portal offers full history. Invoice URLs are provider-hosted. The billing portal enables payment-method updates, invoice history and end-of-period cancellation, but disables plan changes. Return URLs must be same-origin HTTPS and match the checkout origin. Persist verified status and refresh it periodically; initial checkout completion is not a lifetime entitlement. Cancellation does not automatically deprovision separately hosted websites.
 
 ### 1) Enable Payments
 
@@ -256,7 +274,7 @@ When users build restaurant POS, cafes, or retail applications requiring in-pers
 Full directory: [Stripe Terminal Devices](https://stripe.com/terminal/devices) | Setup Guide: [Stripe Terminal Documentation](https://stripe.com/docs/terminal)
 
 ### Web App (Browser POS) Compatibility Rule
-- **Web applications (Preact/browser) MUST use Internet-connected Smart Readers** (WisePOS E, S700/S710, T600, V660p). Web browsers communicate with readers via the Stripe Cloud API / `@stripe/terminal-js` SDK without needing Bluetooth pairing.
+- **Web applications (browser) MUST use Internet-connected Smart Readers** (WisePOS E, S700/S710, T600, V660p). Web browsers communicate with readers via the Stripe Cloud API / `@stripe/terminal-js` SDK without needing Bluetooth pairing.
 - **Bluetooth readers (Stripe Reader M2) and Tap to Pay are unsupported in web browsers** and require native mobile apps.
 
 ## Additional Examples

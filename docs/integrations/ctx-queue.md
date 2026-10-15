@@ -4,7 +4,7 @@ Use `ctx.queue` to offload work asynchronously from request handlers.
 
 Platform behavior:
 - `ctx.queue.enqueue(...)` stores the message, then dispatches it to the platform message queue.
-- The runtime invokes your target handler route in the isolate.
+- The runtime invokes your target handler route in your backend.
 - Handler output controls acknowledgement (`ack`) vs requeue (`nack`).
 - Retry attempts are bounded by `maxRetries` and terminal failures move to dead-letter status.
 - Queue operations emit analytics metrics under event type `queue_usage`.

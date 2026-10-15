@@ -6,7 +6,7 @@ This guide provides developers with root-cause explanations, diagnostic guidance
 
 ## 1. Overview of Platform Error Feedback
 
-SiteMills isolates user code in sandboxed V8 execution environments. To maintain security, internal infrastructure details (internal microservice IPs, server filesystem paths, and platform secrets) are sanitized. 
+SiteMills isolates user code in sandboxed V8 execution environments. To maintain security, internal infrastructure details (internal addresses, server filesystem paths, and platform secrets) are sanitized. 
 
 When an RPC handler, cloud compilation, database query, or CLI command fails, use this guide and the built-in CLI diagnostic engine (`sitemills-cli help errors`) to identify the exact cause and resolution.
 
@@ -136,4 +136,45 @@ sitemills-cli logs <projectId> --env DEV --level ERROR --limit 50
 
 # View logs for a specific branch
 sitemills-cli logs <projectId> --branch feature-branch --level ERROR
+```
+
+
+---
+
+## 8. Escalating Issues, Reporting Bugs & Filing Feature Requests
+
+When an automated agent, developer, or CLI diagnostics pipeline encounters an unresolvable error, system outage, or user request, create a structured ticket on the project or platform queue instead of silently failing or spinning in retry loops.
+
+### 8.1 Issue Classification Matrix
+
+| Category | When to Use | Recommended Priority |
+|---|---|:---:|
+| `INFRA_DOWN` | Platform databases, platform services, or gateways return connection refused / 502 / 503 / 504 | P0 (Critical) |
+| `PLATFORM_BUG` | Core platform APIs or cloud compiler return unexpected 500 internal errors or break contract validation | P1 (High) |
+| `AGENT_ERROR` | Autonomous runner or agentic pipeline throws unhandled exceptions or loops unexpectedly | P1 (High) |
+| `USER_CODE_BUG` | Runtime exceptions (`TypeError`, broken handlers) diagnosed in client application code | P2 (Medium) |
+| `USER_CONFIG_ERROR` | Invalid environment variables, broken contract JSON, or bad DNS configuration | P2 (Medium) |
+| `USER_SUPPORT` | User explicitly requests assistance from the engineering or operations team | P2 (Medium) |
+| `FEATURE_REQUEST` | User or client proposes a new platform capability, tool, or UI enhancement | P3 (Low) / P2 |
+
+### 8.2 Submitting via CLI
+```bash
+# Report an unexpected platform or compiler error:
+sitemills-cli add-task <projectId> "Cloud compiler failed on module resolution" "Diagnostics details: ..." --category PLATFORM_BUG --priority 1
+
+# File a user feature request:
+sitemills-cli add-task <projectId> "Support CSV export in Orders table" "User requested ability to export order history as CSV" --category FEATURE_REQUEST --priority 3
+```
+
+### 8.3 Submitting via Developer API
+```bash
+curl -s -X POST "https://agent.sitemills.com/api/v1/dashboard/projects/<projectId>/planning/tasks" \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Database connection timeout during peak hours",
+    "description": "Database query timed out after 5000ms",
+    "category": "INFRA_DOWN",
+    "priority": 0
+  }'
 ```

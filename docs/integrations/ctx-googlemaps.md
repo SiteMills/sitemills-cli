@@ -121,13 +121,13 @@ const result = await ctx.googlemaps.getPlaceDetails({
 
 ## Frontend Integration (Client Script Injection)
 
-To load Google Maps on the client side (in your Preact views) for rendering maps or using places autocomplete:
+To load Google Maps on the client side for rendering maps or using places autocomplete:
 
 ### 1) Expose a backend route to load the API Key
-Create a backend handler in `server/handlers.ts` to return the API key safely (or use a dynamic script loader directly):
+Create a backend handler in `server/handlers/googlemaps.ts` to return the API key safely:
 
 ```typescript
-// server/handlers.ts
+// server/handlers/googlemaps.ts
 export async function getGoogleMapsConfig(ctx) {
     // Get the key dynamically (handles platform fallback automatically)
     const apiKey = await ctx.googlemaps.getApiKey();
@@ -135,12 +135,12 @@ export async function getGoogleMapsConfig(ctx) {
 }
 ```
 
-### 2) Dynamic script loader (Preact Hook)
-Implement a utility in your views to load the SDK script dynamically on mount:
+### 2) Dynamic script loader (React Component)
+Implement a utility or component in your views to load the SDK script dynamically on mount:
 
 ```typescript
-// public/views/home-view.tsx
-import { useEffect, useRef, useState } from 'https://esm.sh/preact@10.23.1/hooks';
+// src/components/LocationMapComponent.tsx
+import { useEffect, useRef, useState } from 'react';
 
 export function LocationMapComponent() {
   const mapRef = useRef<HTMLDivElement>(null);
@@ -157,7 +157,7 @@ export function LocationMapComponent() {
         }
         
         // 2. Inject script dynamically
-        if (window.google) {
+        if ((window as any).google) {
           setSdkLoaded(true);
           return;
         }
@@ -176,6 +176,7 @@ export function LocationMapComponent() {
 
     // 3. Render map with location pins
     const position = { lat: 37.4223878, lng: -122.0841814 };
+    const google = (window as any).google;
     const map = new google.maps.Map(mapRef.current, {
       center: position,
       zoom: 15

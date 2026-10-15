@@ -32,7 +32,7 @@ Explore the full catalog at [Stripe Terminal Devices Directory](https://stripe.c
 
 ## 2. Web App (Browser POS) Compatibility Rules
 
-SiteMills web applications (running on Preact / standard web browsers across iPads, Macs, Windows PCs, and Android tablets) follow these strict rules:
+SiteMills web applications (running in standard web browsers across iPads, Macs, Windows PCs, and Android tablets) follow these strict rules:
 
 ### A. Web Browsers MUST Use Internet-Connected / Smart Readers
 - **Supported for Web POS**: **BBPOS WisePOS E**, **Stripe Reader S700 / S710**, **Stripe Reader T600**, **Verifone V660p**.
@@ -163,7 +163,7 @@ Because Smart Readers (WisePOS E, S700, T600) communicate directly with the Stri
 ### Architecture Diagram
 
 ```
-[ Cashier clicks 'Charge $25.00' in Preact POS ]
+[ Cashier clicks 'Charge $25.00' in Web POS ]
                        │
                        ▼
              [ Backend API Handler ]

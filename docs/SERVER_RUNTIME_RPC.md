@@ -9,8 +9,8 @@ This document specifies the backend runtime architecture, RPC endpoint discovery
 SiteMills runs backend application code in high-performance, secure **V8 Isolated VMs**. 
 - **Sandboxed Execution**: Handlers execute with zero access to the host Node.js process, host filesystem, or host network sockets.
 - **Injected Context (`ctx`)**: All external I/O (database queries, HTTP requests, scheduled jobs, realtime messaging) is mediated through the injected `ctx` platform APIs.
-- **Available Sandbox Globals**: Handlers have access to standard ECMAScript pure objects, plus polyfilled Web APIs: `Response`, `Request`, `console`, `window`, and `crypto.randomUUID()`.
-- **Node.js & Web APIs Not Available**: Unpolyfilled Web APIs (e.g. `URL`, `URLSearchParams`) and Node.js built-ins (`process`, `Buffer`, `fs`, `http`, `net`) are not present in global scope. For URL parsing and origin extraction, use regex or string manipulation.
+- **Available Sandbox Globals**: Handlers have access to standard ECMAScript pure objects, plus supported Web APIs: `Response`, `Request`, `console`, `window`, and `crypto.randomUUID()`.
+- **Node.js & Web APIs Not Available**: Unsupported Web APIs (e.g. `URL`, `URLSearchParams`) and Node.js built-ins (`process`, `Buffer`, `fs`, `http`, `net`) are not present in global scope. For URL parsing and origin extraction, use regex or string manipulation.
 - **Fast Startup & Re-use**: Isolates are pooled and reused across requests. Memory state within global scope persists across invocations within the same worker instance, but should not be relied upon for critical state (use `ctx.db` or `ctx.state` instead).
 
 ---

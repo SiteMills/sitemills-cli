@@ -26,7 +26,7 @@ This API enables a **create → pull → edit → push delta → compile/deploy*
 └─────────────┘                   └──────────────────┘
 ```
 
-> **Important:** The Developer API can only push to projects it created. Projects created through the SiteMills web UI cannot be modified via this API.
+> **Access:** You can read and push to any project you have access to. Pushing requires the Owner or Developer role on the project.
 
 ---
 
@@ -34,7 +34,7 @@ This API enables a **create → pull → edit → push delta → compile/deploy*
 
 | Environment | Base URL |
 |------------|---------|
-| Production | `https://agent.sitemills.com` |
+| Production | `https://sitemills.com` |
 
 All endpoints are served via the SiteMills Developer API.
 
@@ -42,15 +42,13 @@ All endpoints are served via the SiteMills Developer API.
 
 ## Authentication
 
-Every request must include a **Developer API Key** in the `X-Developer-Api-Key` header:
+Every request must include your SiteMills login token as a Bearer token:
 
 ```
-X-Developer-Api-Key: <your_api_key>
+Authorization: Bearer <your_token>
 ```
 
-The API key is a shared secret configured in the server's `application.yml` under `agent.developer.api.secret` (env var: `DEVELOPER_API_SECRET`).
-
-> **No JWT required.** This API uses a simple secret key, unlike the web frontend which uses Bearer JWT tokens.
+Run `sitemills-cli login` to sign in through the browser. The CLI saves your token under `~/.sitemills/` and sends it automatically on every command. When you call the API directly, send the same token. If a request returns `401`, the token has expired; run `sitemills-cli login` again.
 
 ---
 
@@ -63,7 +61,6 @@ The API key is a shared secret configured in the server's `application.yml` unde
 | **files** | A `Map<String, String>` where keys are relative file paths (e.g. `app.tsx`, `styles.css`, `server/handlers.ts`) and values are file contents. |
 | **snapshot** | An immutable point-in-time capture of all project files. Every code mutation creates a new snapshot. |
 | **codeVersion** | A versioned entry in the code history chain, linked to a snapshot. Supports undo/redo. |
-| **developerApiManaged** | Projects created via this API are tagged so that only this API can push changes to them. |
 
 ---
 
@@ -71,7 +68,7 @@ The API key is a shared secret configured in the server's `application.yml` unde
 
 ### 1. Create Project (Import)
 
-Create a new SiteMills project with the given files. The project is tagged as **developer-API-managed** so it can be updated via the push endpoint.
+Create a new SiteMills project with the given files.
 
 ```
 POST /api/v1/agent/projects/import
@@ -79,7 +76,7 @@ POST /api/v1/agent/projects/import
 
 **Headers:**
 ```
-X-Developer-Api-Key: <your_api_key>
+Authorization: Bearer <your_token>
 Content-Type: application/json
 ```
 
@@ -88,7 +85,7 @@ Content-Type: application/json
 {
   "projectName": "My Portfolio Site",
   "files": {
-    "app.tsx": "import { h } from 'preact';\n...",
+    "app.tsx": "export default function App() {\n...",
     "styles.css": "@tailwind base;\n...",
     "index.html": "<!DOCTYPE html>\n..."
   }
@@ -107,7 +104,7 @@ Content-Type: application/json
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `projectName` | string | **Yes** | Human-readable project name. Used to generate the projectId. |
-| `seed` | boolean | No | When `true`, automatically scaffolds the project using the canonical SiteMills project template (Preact app shell, backend handlers, contracts, PWA manifest, and service worker push notification handlers). |
+| `seed` | boolean | No | When `true`, automatically scaffolds the project using the canonical SiteMills project template (app shell, backend handlers, contracts, PWA manifest, and service worker push notification handlers). |
 | `projectStructureType` | string | No | Project layout structure, defaults to `DIRECT`. |
 | `files` | `Map<String, String>` | Yes (unless `seed: true`) | Initial file paths → contents. Optional when `seed: true`. |
 
@@ -128,7 +125,7 @@ Content-Type: application/json
 | Code | Reason |
 |------|--------|
 | `400` | Missing project name or empty files |
-| `401` | Invalid or missing API key |
+| `401` | Missing, invalid, or expired token |
 | `409` | Project ID already exists |
 
 ---
@@ -143,7 +140,7 @@ GET /api/v1/agent/projects/{projectId}/export?branchId={branchId}
 
 **Headers:**
 ```
-X-Developer-Api-Key: <your_api_key>
+Authorization: Bearer <your_token>
 ```
 
 **Query Parameters:**
@@ -160,7 +157,7 @@ X-Developer-Api-Key: <your_api_key>
   "branchId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "exportedAt": "2026-06-04T15:00:00Z",
   "files": {
-    "app.tsx": "import { h } from 'preact';\n...",
+    "app.tsx": "export default function App() {\n...",
     "styles.css": "@tailwind base;\n...",
     "index.html": "<!DOCTYPE html>\n...",
     "server/handlers.ts": "export default {\n...",
@@ -179,7 +176,7 @@ X-Developer-Api-Key: <your_api_key>
 
 | Code | Reason |
 |------|--------|
-| `401` | Invalid or missing API key |
+| `401` | Missing, invalid, or expired token |
 | `404` | No files found, or project does not exist |
 
 ---
@@ -188,15 +185,13 @@ X-Developer-Api-Key: <your_api_key>
 
 Send **only the files that changed** back to SiteMills. This persists the changes, creates a new snapshot and code version, then automatically triggers compilation and deployment.
 
-**Only works on projects created via this API** (the import endpoint).
-
 ```
 POST /api/v1/agent/projects/{projectId}/push
 ```
 
 **Headers:**
 ```
-X-Developer-Api-Key: <your_api_key>
+Authorization: Bearer <your_token>
 Content-Type: application/json
 ```
 
@@ -205,7 +200,7 @@ Content-Type: application/json
 {
   "branchId": "a1b2c3d4-...",
   "files": {
-    "app.tsx": "import { h } from 'preact';\n// updated component\n...",
+    "app.tsx": "export default function App() {\n// updated component\n...",
     "styles.css": "/* updated styles */\n..."
   },
   "deletedFiles": [
@@ -268,8 +263,8 @@ Content-Type: application/json
 | Code | Reason |
 |------|--------|
 | `400` | Both `files` and `deletedFiles` are empty, or missing branchId |
-| `401` | Invalid or missing API key |
-| `403` | Project was not created via the Developer API |
+| `401` | Missing, invalid, or expired token |
+| `403` | You do not have write access to this project |
 | `404` | Project not found |
 | `409` | A workflow is currently running on this branch (cannot push while agent is active) |
 
@@ -347,12 +342,12 @@ This is the same as endpoint #2. The response always reflects the **current HEAD
 ### 1. Create the Project
 
 ```bash
-export SM_API_KEY="<your-developer-api-key>"
-export SM_BASE="https://agent.sitemills.com"
+export SM_TOKEN="<your-login-token>"
+export SM_BASE="https://sitemills.com"
 
 # Create a new project
 IMPORT_RESPONSE=$(curl -s -X POST \
-  -H "X-Developer-Api-Key: $SM_API_KEY" \
+  -H "Authorization: Bearer $SM_TOKEN" \
   -H "Content-Type: application/json" \
   "$SM_BASE/api/v1/agent/projects/import" \
   -d '{
@@ -373,7 +368,7 @@ echo "Created project: $PROJECT_ID, branch: $BRANCH_ID"
 ### 2. Pull Full Project (for reference)
 
 ```bash
-curl -s -H "X-Developer-Api-Key: $SM_API_KEY" \
+curl -s -H "Authorization: Bearer $SM_TOKEN" \
   "$SM_BASE/api/v1/agent/projects/$PROJECT_ID/export?branchId=$BRANCH_ID" \
   > /tmp/sitemills-project/project.json
 
@@ -396,7 +391,7 @@ cat /tmp/sitemills-project/project.json | jq -r '.files | to_entries[] | @base64
 
 # Push only changed files
 curl -s -X POST \
-  -H "X-Developer-Api-Key: $SM_API_KEY" \
+  -H "Authorization: Bearer $SM_TOKEN" \
   -H "Content-Type: application/json" \
   "$SM_BASE/api/v1/agent/projects/$PROJECT_ID/push" \
   -d "{
@@ -416,7 +411,7 @@ curl -s -X POST \
 
 ```bash
 # If state is out of sync, pull the full project again
-curl -s -H "X-Developer-Api-Key: $SM_API_KEY" \
+curl -s -H "Authorization: Bearer $SM_TOKEN" \
   "$SM_BASE/api/v1/agent/projects/$PROJECT_ID/export?branchId=$BRANCH_ID" \
   > /tmp/sitemills-project/project.json
 ```
@@ -504,10 +499,11 @@ Use these for precise error correction without guessing.
 |-----------|---------|--------------|
 | `200` | Success | Process the response |
 | `400` | Bad request (missing fields, invalid data) | Fix the request |
-| `401` | Invalid or missing API key | Check your `X-Developer-Api-Key` header |
-| `403` | Forbidden — project not API-managed | You can only push to projects you created via import |
+| `401` | Missing, invalid, or expired token | Run `sitemills-cli login` and retry with the new token |
+| `403` | Forbidden — no access to this project | Ask the project owner for the Developer role |
 | `404` | Project or branch not found | Check projectId/branchId |
 | `409` | Conflict (workflow running, or project exists) | Wait and retry, or refresh |
+| `429` | Too many requests | Wait, then retry with backoff |
 | `500` | Server error | Retry with backoff |
 
 ---
@@ -545,7 +541,7 @@ Use these for precise error correction without guessing.
 | Get Metrics | `GET` | `/api/v1/agent/projects/{id}/metrics?eventType=...&from=...&to=...` |
 | Get Orders | `GET` | `/api/v1/agent/projects/{id}/orders` |
 
-**All requests require:** `X-Developer-Api-Key: <your_api_key>`
+**All requests require:** `Authorization: Bearer <your_token>`
 
 ---
 
@@ -725,3 +721,89 @@ Move forward to the next version in the history tree, if one exists (i.e., if no
 
 **Query Parameters:**
 - `branchId` (string, optional): Target branch.
+
+
+---
+
+## Tasks, Tickets & Issue Reporting API
+
+SiteMills provides programmatic APIs for reading task boards, creating sprint deliverables, reporting platform bugs, filing support incidents, and submitting user feature requests.
+
+### 1. Get Project Planning Board
+Retrieves all tasks and tickets across `pending`, `inProgress`, and `finished` columns.
+
+```bash
+GET /api/v1/dashboard/projects/:projectId/planning/board
+```
+
+**Headers:**
+```http
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Response:**
+```json
+{
+  "projectId": "my-app",
+  "columns": ["ASSIGNED", "IN_PROGRESS", "FIXED"],
+  "pending": [
+    {
+      "task": {
+        "taskId": "TASK-101",
+        "title": "Add dark mode toggle",
+        "category": "FEATURE_REQUEST",
+        "status": "ASSIGNED",
+        "priority": 2,
+        "assignee": null
+      }
+    }
+  ],
+  "inProgress": [],
+  "finished": []
+}
+```
+
+### 2. Create Task or Ticket
+Creates a new task or reports an issue.
+
+```bash
+POST /api/v1/dashboard/projects/:projectId/planning/tasks
+```
+
+**Request Body:**
+```json
+{
+  "title": "Cart drawer drops frames during animation",
+  "description": "Observed lag when opening mobile checkout drawer",
+  "category": "USER_CODE_BUG",
+  "priority": 2,
+  "assignee": null
+}
+```
+
+**Valid Categories:**
+- `FEATURE` (default sprint deliverable)
+- `FEATURE_REQUEST` (user/client feature proposal)
+- `INFRA_DOWN` (infrastructure outage, P0)
+- `PLATFORM_BUG` (platform service defect, P1)
+- `AGENT_ERROR` (agent runner failure, P1)
+- `USER_CODE_BUG` (client runtime error, P2)
+- `USER_CONFIG_ERROR` (configuration or contract issue, P2)
+- `USER_SUPPORT` (user inquiry or support request, P2)
+
+### 3. Update Task or Ticket
+Updates the status, priority, category, or assignment of an existing task.
+
+```bash
+POST /api/v1/dashboard/projects/:projectId/planning/tasks/:id
+```
+
+**Request Body:**
+```json
+{
+  "status": "FIXED",
+  "priority": 2,
+  "category": "FEATURE_REQUEST",
+  "assignee": "engineer@sitemills.com"
+}
+```

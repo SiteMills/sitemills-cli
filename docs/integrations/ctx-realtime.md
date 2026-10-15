@@ -23,6 +23,52 @@ Browser ←→ Realtime WebSocket Gateway ←→ Platform Message Bus ←→ Ser
 - Server handlers receive messages and can broadcast back
 - Messages are scoped per channel (e.g. 'chat', 'game', 'dashboard')
 
+### Private account and guest updates
+
+`await ctx.realtime.notify(recipient, event, data?)` delivers only to WebSocket
+sessions subscribed to `__private__` with a matching verified identity, project,
+code branch and data scope, and an unexpired token. Recipients are
+`user:<runtime user ID>` or `guest:<ctx.visitor.id>`. Guest identity remains
+distinct from login. Resolve the recipient from authorized server records, never
+from an unchecked browser payload.
+
+```typescript
+// Backend: persist first, then send a small invalidation signal
+await ctx.db.collection('workspaces').updateOne({ id: workspaceId }, { $set: changes });
+await ctx.realtime.notify('user:' + ownerUserId, 'workspaceChanged', {});
+```
+
+```typescript
+// Frontend: re-fetch the authorized snapshot on invalidation and after (re)subscribing
+import { connect, subscribe, on, onStatus } from '../api/realtime-client.js';
+
+await connect();
+subscribe('__private__');
+on('__private__', 'workspaceChanged', () => refreshWorkspace());
+onStatus(({ state, channel }) => {
+    if (state === 'subscribed' && channel === '__private__') refreshWorkspace();
+});
+```
+
+Use this for private inbox/workspace updates. Ordinary channel names such as
+`admin:inbox` or `account:alice` are **not access controls**; never broadcast private
+messages on those channels. `notify` rejects missing or invalid recipients
+instead of falling back to a broadcast. Private notifications are delivered over
+WebSockets only (not over the SSE client). No backlog is kept: reconnecting
+clients should re-fetch their authorized state.
+
+Persist first, then send a small invalidation (for example `workspaceChanged`, `{}`).
+The frontend re-fetches its authorized snapshot. The browser client retains
+subscriptions across reconnects and exposes `onStatus` (`connected`,
+`disconnected`, `subscribed`); fetch after a `subscribed` acknowledgment and on
+returning to the tab. Keep a manual refresh action and preserve unsaved drafts.
+Delivery is best-effort, not a substitute for database persistence. Guest HTTP
+mutations still use cookie verification; this does not authorize guest WebSocket
+writes or let a channel subscription grant project membership.
+
+Web Push (`ctx.push`) is separate: optional, permission-based delivery for suspended
+or closed apps. A live WebSocket cannot replace that browser/OS facility.
+
 ## Backend: Registering a Realtime Handler
 
 Use `sdk.onRealtime(channel, handler)` to register a handler for incoming
@@ -105,14 +151,25 @@ await ctx.realtime.sendToUser('game', 'user@email.com', 'yourTurn', {
 await ctx.realtime.sendToUser('user:' + targetUserId, targetUserId, 'matchFound', { roomId });
 ```
 
-## Frontend: Connecting to Realtime
-
-The frontend uses the pre-built `api/realtime-client.js` framework file.
-This file is automatically available in every project — do NOT create or overwrite it.
-Just import from it:
+### notify(recipient, event, data?)
+Private delivery to a verified `user:<id>` or `guest:<visitorId>` recipient whose
+browser is subscribed to `__private__`. See
+[Private account and guest updates](#private-account-and-guest-updates).
 
 ```typescript
-import { connect, subscribe, on, send, disconnect } from '../api/realtime-client.js';
+await ctx.realtime.notify('user:' + ownerUserId, 'inboxChanged', {});
+```
+
+## Frontend: Connecting to Realtime
+
+The frontend uses either the pre-built `api/realtime-client.js` (WebSockets) or `api/sse-client.js` (Server-Sent Events) framework file.
+These files are automatically available in every project — do NOT create or overwrite them.
+Just import from them.
+
+### WebSockets (`api/realtime-client.js`)
+
+```typescript
+import { connect, subscribe, unsubscribe, on, send, disconnect } from '../api/realtime-client.js';
 
 // Connect once on app startup
 await connect();
@@ -134,18 +191,44 @@ unsubscribe('chat');
 disconnect();
 ```
 
-For full API reference: `read_file("api/realtime-client.js")`
+The client also exports `off(channel, event, callback)` and `onStatus(callback)`.
+For the full API, see `api/realtime-client.js` in your project.
+
+### Server-Sent Events (SSE) (`api/sse-client.js`)
+
+Provides a drop-in replacement that uses EventSource for unidirectional server-to-client streaming, and HTTP POST requests for client-to-server messaging. Useful when WebSockets are blocked or unnecessary:
+
+```typescript
+import { connect, subscribe, unsubscribe, on, send, disconnect } from '../api/sse-client.js';
+
+// Connect once on app startup
+await connect();
+
+// Subscribe to a channel
+subscribe('chat');
+
+// Listen for events
+on('chat', 'newMessage', (data) => { /* handle */ });
+
+// Send messages
+send('chat', 'sendMessage', { text: 'Hello!' });
+
+// Optional: unsubscribe or disconnect
+unsubscribe('chat');
+disconnect();
+```
+
+For the full API, see `api/sse-client.js` in your project.
 
 ## Frontend Usage Example (Chat)
 
 ```typescript
-// public/views/chat-view.tsx
-import { render } from 'https://esm.sh/preact@10.23.1';
-import { useState, useEffect, useRef } from 'https://esm.sh/preact@10.23.1/hooks';
-import { connect, subscribe, on, send } from '../api/realtime-client.js';
+// src/components/ChatView.tsx
+import { useState, useEffect, useRef } from 'react';
+import { connect, subscribe, on, send } from '@/api/realtime-client.js';
 
-function ChatView() {
-    const [messages, setMessages] = useState([]);
+export function ChatView() {
+    const [messages, setMessages] = useState<Array<{ userId: string; text: string }>>([]);
     const [input, setInput] = useState('');
     const initialized = useRef(false);
 
@@ -169,32 +252,30 @@ function ChatView() {
     };
 
     return (
-        <div class="flex flex-col h-full">
-            <div class="flex-1 overflow-y-auto p-4 space-y-2">
-                {messages.map(m => (
-                    <div class="bg-gray-100 rounded p-2">
-                        <span class="font-bold">{m.userId}: </span>
+        <div className="flex flex-col h-full">
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                {messages.map((m, idx) => (
+                    <div key={idx} className="bg-gray-100 rounded p-2">
+                        <span className="font-bold">{m.userId}: </span>
                         <span>{m.text}</span>
                     </div>
                 ))}
             </div>
-            <div class="p-4 flex gap-2">
+            <div className="p-4 flex gap-2">
                 <input
-                    class="flex-1 border rounded px-3 py-2"
+                    className="flex-1 border rounded px-3 py-2"
                     value={input}
-                    onInput={e => setInput(e.target.value)}
+                    onChange={e => setInput(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && sendMessage()}
                     placeholder="Type a message..."
                 />
-                <button class="bg-blue-500 text-white px-4 py-2 rounded" onClick={sendMessage}>
+                <button className="bg-blue-500 text-white px-4 py-2 rounded" onClick={sendMessage}>
                     Send
                 </button>
             </div>
         </div>
     );
 }
-
-render(<ChatView />, document.getElementById('app'));
 ```
 
 ## Handler Signature
@@ -258,7 +339,7 @@ sdk.onRealtime('ops-admin', async (ctx, message) => {
         return;
     }
 
-    const resource = 'sitemills:projects:project-1:channels:ops-admin';
+    const resource = 'channels:ops-admin'; // project-relative; the platform scopes it automatically
 
     await ctx.permissions.require({
         subjectId: user.id,
@@ -297,5 +378,5 @@ sdk.onRealtime('ops-admin', async (ctx, message) => {
 ## Realtime Implementation Classification
 
 When addressing realtime/multiplayer/WebSocket design or queries, explicitly classify the implementation surface:
-1. **Event-channel realtime:** `ctx.realtime` + `sdk.onRealtime(...)` + `api/realtime-client.js`.
+1. **Event-channel realtime:** `ctx.realtime` + `sdk.onRealtime(...)` + `api/realtime-client.js` (WebSockets) or `api/sse-client.js` (Server-Sent Events).
 2. **Browser peer-to-peer setup:** `ctx.p2p` + `api/p2p-client.js` + WebRTC offer/answer/ICE signaling on `__p2p__:<sessionId>` channels.

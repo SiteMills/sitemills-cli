@@ -32,7 +32,6 @@ Location: `contracts/jobs.json`
       "timezone": "America/New_York",
       "timeoutMs": 60000,
       "retries": 2,
-      "description": "Nightly job to clear expired carts",
       "params": {
         "maxAgeHours": "number"
       }
@@ -41,7 +40,6 @@ Location: `contracts/jobs.json`
       "trigger": "manual",
       "timeoutMs": 120000,
       "retries": 0,
-      "description": "On-demand inventory reconciliation",
       "params": {
         "vendorId": "string"
       }
@@ -59,10 +57,9 @@ Location: `contracts/jobs.json`
 | `jobs.<name>.trigger` | string | **Required** | — | Execution trigger. Must be either `"schedule"` or `"manual"`. |
 | `jobs.<name>.schedule` | string | Required if `trigger: "schedule"` | — | Standard 5-field UNIX cron expression: `minute hour day-of-month month day-of-week`. Forbidden if `trigger: "manual"`. |
 | `jobs.<name>.timezone` | string | Optional | `"UTC"` | Valid IANA timezone name (e.g., `"America/New_York"`, `"Europe/London"`, `"Asia/Tokyo"`). |
-| `jobs.<name>.timeoutMs` | number | Optional | `60000` | Maximum execution time in milliseconds before the job is terminated. Minimum: `1000` (1s), Maximum: `900000` (15m). |
-| `jobs.<name>.retries` | number | Optional | `0` | Number of automatic retries on unhandled failure or timeout. Minimum: `0`, Maximum: `5`. |
-| `jobs.<name>.description` | string | Optional | — | Human-readable description shown in the dashboard and CLI. |
-| `jobs.<name>.params` | object | Optional | `{}` | JSON Schema / type dictionary defining accepted parameter types for runtime validation. |
+| `jobs.<name>.timeoutMs` | number | Optional | `60000` | Hard timeout per attempt, in milliseconds. Must be greater than `0`. |
+| `jobs.<name>.retries` | number | Optional | `0` | Number of automatic retries after a failed or timed-out attempt. Must be `0` or more. Retries wait 30s, 2m, 10m, 30m, then 1h. |
+| `jobs.<name>.params` | object | Optional | `{}` | Param schema using the same types as request handlers (`"string"`, `"number"`, `"boolean"`, `"object"`, `"array"`; add `?` for optional). |
 
 ### 2.3 UNIX Cron Syntax Reference
 
@@ -139,7 +136,7 @@ When a job executes, the platform injects an enhanced context object (`ctx`) as 
 | `ctx.previousRun` | `object | null` | Details of the most recent successful run: `{ startedAt, finishedAt, status, cursor }`. |
 | `ctx.log(message, data?)` | `function` | In-memory structured logging. Stored in execution history and visible in the dashboard / CLI. Buffer cap: 200KB. |
 | `ctx.state.get(key)` | `async (key: string) => Promise<any>` | Reads persistent key-value state across job runs. |
-| `ctx.state.set(key, value)` | `async (key: string, value: any) => Promise<void>` | Saves persistent key-value state (max 64KB per value, 1MB per job). |
+| `ctx.state.set(key, value)` | `async (key: string, value: any) => Promise<void>` | Saves persistent key-value state (max 64KB per value). |
 | `ctx.state.setCursor(cursor)` | `function` | Records a checkpoint cursor string/object passed to `ctx.previousRun.cursor` on the next run. |
 | `ctx.db` | `Database` | Full SiteMills MongoDB collection access (`ctx.db.collection('name')`). |
 | `ctx.realtime` | `Realtime` | Push notification and websocket channels. |

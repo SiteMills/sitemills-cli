@@ -10,6 +10,69 @@ Typical use cases:
 
 ## Methods
 
+### Private and paid downloads
+
+`claimUpload` is for PUBLIC media (avatars, thumbnails, gallery images). For
+sensitive or paid files, use `claimPrivateUpload` instead. Private files live in
+private object storage and have no public URL.
+
+```typescript
+// Authenticated backend handler: verify this user may upload/publish this file first.
+const file = await ctx.storage.claimPrivateUpload(fileId);
+// Returns { id, visibility: 'PRIVATE', originalFilename, sizeBytes }; persist id in your app.
+
+// Separate authenticated download handler: load your app's file/purchase records
+// and verify ctx.userId owns the file or has a valid paid entitlement BEFORE this call.
+const grant = await ctx.storage.createDownloadGrant(file.id, browserProof);
+// Returns { url, token, expiresAt } with a 60-second lifetime.
+
+// After verifying the current user is authorized to delete this file:
+await ctx.storage.deletePrivateFile(file.id);
+```
+
+The platform enforces project/branch isolation and requires an authenticated app
+session. **Your handler enforces per-file ownership, roles and payment.** Never
+expose an unconditional grant/delete handler that accepts arbitrary file IDs.
+Never take project, branch, user or session IDs from the browser; the runtime
+supplies them from trusted request context.
+
+Frontend usage (the callback is your authenticated handler call):
+
+```typescript
+import { fetchPrivateDownload } from '/api/asset-client.js';
+
+const response = await fetchPrivateDownload(proof =>
+    requestAuthorizedDownload({ fileId, browserProof: proof }));
+const blob = await response.blob(); // Or consume response.body as a stream.
+```
+
+`fetchPrivateDownload` generates a random browser-held proof, passes it to your
+callback, then sends the proof and the returned grant in request headers
+directly to storage. A copied URL alone, or a grant without the proof, cannot
+download. The grant/proof pair is a short-lived capability: sharing BOTH allows
+access until expiry. There is no per-chunk session revalidation; revocation takes
+at most the grant lifetime for new requests. An already-started stream may finish
+afterward. Downloaded files can always be shared onward by their recipients.
+
+Keep grants/proofs out of URLs, logs, persisted app records and shared caches.
+Private responses use no-store, attachment delivery and origin-bound CORS.
+`storage.url`/`storage.get` reject private files; the public upload URL returns no
+file. `storage.list` lists public files only; retain private IDs in your
+authorized app records. Private files are retained until you call
+`deletePrivateFile`; there is no private TTL option. Deletion removes the stored
+object before its metadata.
+
+Browser `uploadFile(file)` (from `api/asset-client.js`) reserves the project's
+file quota, uploads the file directly to storage in signed chunks, and finalizes
+metadata. It supports files up to 2,000,000,000 bytes, subject to remaining
+project space. The custom domain and platform hostname share the same project
+allowance; client-supplied project IDs cannot change the scope. Claim the
+returned file ID as public or private. Decide visibility before publishing:
+a file that was claimed as public and shared cannot be made secret retroactively.
+Private claim retries are idempotent within the pending upload's one-hour
+lifetime. If private storage is unavailable, private claims fail with an error
+rather than falling back to public storage.
+
 ### 1) Upload bytes from backend code
 
 ```typescript
@@ -116,7 +179,7 @@ export async function saveProfileAvatar(ctx, { fileId }) {
         throw new Error('fileId is required');
     }
 
-    const resource = `sitemills:projects:project-1:profiles:${ctx.user.id}`;
+    const resource = `profiles:${ctx.user.id}`; // project-relative; the platform scopes it automatically
 
     await ctx.permissions.require({
         subjectId: ctx.user.id,
@@ -208,7 +271,13 @@ export async function queueInvoiceExtraction(ctx, { fileId, invoiceId }) {
 
 ## Limits and validation
 
-- `storage.upload` max file size is 10 MB.
+- `storage.upload` accepts small server-generated files up to 10 MiB and counts
+  against the same project file-storage quota as browser uploads.
+- Browser `uploadFile(file)` supports up to 2 GB per file, uploaded directly in
+  bounded chunks. Files must fit remaining project storage (Free 50 MiB,
+  Basic 75 GB, Advanced 300 GB, Ultra 600 GB). Pending uploads reserve space too.
+- Database storage and file storage have separate allowances. Authorize uploads
+  and downloads in app handlers as appropriate for your users/entitlements.
 - `claimUpload.ttlSeconds` is optional, but when provided it must be:
   - an integer
   - greater than 0

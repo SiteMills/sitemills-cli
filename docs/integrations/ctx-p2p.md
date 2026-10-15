@@ -14,7 +14,7 @@ Do not use `ctx.p2p` for:
 - server-authoritative multiplayer room sessions (realtime rooms, backend room lifecycle)
 - generic server-routed notifications/live feeds (`ctx.realtime` with `sdk.onRealtime(...)` and `api/realtime-client.js`)
 
-## Phase-1 guarantees
+## Session limits
 
 - Authenticated users only
 - Mesh topology only
@@ -48,7 +48,7 @@ Behavior:
 - Throws if `ttlSeconds` exceeds configured limits
 
 ### getMeshConfig()
-Return canonical mesh constraints for this runtime.
+Return the mesh constraints for this project.
 
 ```typescript
 const mesh = await ctx.p2p.getMeshConfig();
@@ -65,7 +65,7 @@ const channel = await ctx.p2p.getSignalingChannel('room_abc123');
 
 ## Backend integration pattern (distributed-safe)
 
-Avoid in-memory session maps in handlers. Requests can land on different nodes.
+Avoid in-memory session maps in handlers. Consecutive requests do not share memory.
 Persist any shared session metadata in `ctx.db` by deterministic key.
 
 ```typescript
@@ -180,18 +180,16 @@ session.onSignal(({ event, data }) => {
 	one side answered without local tracks; ensure both peers start local media.
 - Remote element remains blank despite successful signaling:
 	browser autoplay blocked audio/video playback; start muted or require user interaction before unmute.
-- Behavior differs by node/request path:
+- Behavior differs from one request to the next:
 	session metadata was kept in process memory; move all shared state to `ctx.db`.
 
 ## Security rules
 
 - Never trust user-provided sender identity; use server-attached user context
-- Never expose TURN shared secrets in client-managed config
+- Fetch ICE credentials from your backend (`getIceServers`) when needed; don't hard-code them in frontend code
 - Do not bypass participant cap/authentication constraints
 
 ## Related docs
 
-- `read_file("docs/ctx-realtime.md")`
-- `read_file("api/p2p-client.js")`
-- `read_file("public/api/p2p-client.js")`
-- `read_file("api/realtime-client.js")`
+- [`ctx-realtime.md`](ctx-realtime.md)
+- `api/p2p-client.js` and `api/realtime-client.js` in your project

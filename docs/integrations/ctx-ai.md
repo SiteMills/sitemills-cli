@@ -4,7 +4,7 @@ Use `ctx.ai` to enqueue asynchronous AI jobs from backend handlers.
 
 Platform behavior:
 - Requests are queued asynchronously on the platform message bus, not executed inline in the handler.
-- Completed AI work invokes your callback handler route in the isolate.
+- Completed AI work invokes your callback handler route in your backend.
 - Retries are queue-driven and visible in the dashboard AI Workflows tab.
 - Runtime credits are charged from token usage + fixed infra surcharge.
 
@@ -16,12 +16,16 @@ Platform behavior:
 const result = await ctx.ai.enqueue({
         workflowType: 'CHAT',           // required: CHAT | ONE_SHOT
         prompt: 'Draft a concise status update for this incident',
+        previousInteractionId: 'interactions/abc_123', // optional: continue a previous conversation / cached context
         fileIds: ['mid_abc123'],        // optional: attach uploaded files by id
         callbackRoute: 'handlers/ai_callbacks.onStatusDraftReady',
         callbackPayload: { incidentId: 'inc_123' },
         callbackContext: { attemptId: 'att_001' }, // optional: echoed back on callback
         model: 'gemini-3-flash',        // optional
-    enableGoogleSearch: true,       // optional, default false
+        enableGoogleSearch: true,       // optional, default false
+        temperature: 0.7,               // optional, 0.0..2.0, default 0.5
+        topK: 40,                       // optional, 1..100, default 40
+        topP: 0.95,                     // optional, 0.0..1.0, default 0.95
         maxRetries: 2,                  // optional, 0..5
         timeoutMs: 45000                // optional, 1000..120000
 });
@@ -32,10 +36,11 @@ const result = await ctx.ai.enqueue({
 ```typescript
 const result = await ctx.ai.chat({
         prompt: 'Act as a support assistant and answer politely.',
-    fileIds: ['mid_abc123'],        // optional
+        previousInteractionId: 'interactions/abc_123', // optional (aliases: convoId, cacheId)
+        fileIds: ['mid_abc123'],        // optional
         callbackRoute: 'handlers/ai_callbacks.onSupportReplyReady',
         callbackPayload: { ticketId: 't_42' },
-    callbackContext: { convoId: 'convo_42' }, // optional
+        callbackContext: { threadRef: 'thread_42' }, // optional
         model: 'gemini-3-flash-lite', // optional; this is already the default
         enableGoogleSearch: true       // optional, default false
 });
@@ -105,6 +110,8 @@ export async function onIncidentSummaryReady(ctx, params) {
 - If `model` is omitted (or blank), runtime defaults to `gemini-3-flash-lite`.
 - Allowed explicit values:
     - `gemini-3-pro`
+    - `gemini-3.8-flash`
+    - `gemini-3.7-flash`
     - `gemini-3.6-flash`
     - `gemini-3.5-flash`
     - `gemini-3-flash`
@@ -125,6 +132,11 @@ export async function onIncidentSummaryReady(ctx, params) {
   `fileId`, `id`, `uploadId`, or `assetId`.
 - This option is available on `ctx.ai.enqueue`, `ctx.ai.chat`, `ctx.ai.oneShot`, and `ctx.ai.analyze`.
 
+## Optional Generation Parameters (temperature, topK, topP)
+
+- `temperature`: number (`0.0`–`2.0`, default `0.5`), `topK`: integer (`1`–`100`, default `40`), and `topP`: number (`0.0`–`1.0`, default `0.95`).
+- These options are available on `ctx.ai.enqueue`, `ctx.ai.chat`, `ctx.ai.oneShot`, and `ctx.ai.analyze`.
+
 ## Cross-integration recipe (uploads + RBAC + metrics)
 
 ```typescript
@@ -133,7 +145,7 @@ export async function summarizeUploadedSpec(ctx, { fileId, specId }) {
         throw new Error('fileId and specId are required');
     }
 
-    const resource = `sitemills:projects:project-1:specs:${specId}`;
+    const resource = `specs:${specId}`; // project-relative; the platform scopes it automatically
 
     await ctx.permissions.require({
         subjectId: ctx.user.id,
@@ -224,6 +236,11 @@ When the model call succeeds, runtime invokes your callback route with payload:
     prompt: string,
     response: string,
     model: string,
+    interactionId?: string,         // Stateful interaction ID for multi-turn continuations
+    convoId?: string,               // Alias for interactionId
+    conversationId?: string,        // Alias for interactionId
+    cacheId?: string,               // Alias for interactionId
+    previousInteractionId?: string, // Populated if this turn continued a previous interaction
     usage: {
         promptTokenCount?: number,
         cachedTokenCount?: number,
@@ -243,6 +260,38 @@ When the model call succeeds, runtime invokes your callback route with payload:
 
 The canonical AI text field is `response`.
 Runtime also includes `result` as a compatibility alias with the same value.
+
+### Multi-Turn Conversations & Prompt Caching
+
+To continue a conversation across multiple turns, take the `interactionId` (or `convoId` / `cacheId`) from the callback payload and pass it as `previousInteractionId` (or `convoId` / `cacheId`) in the next `ctx.ai.chat` or `ctx.ai.enqueue` call:
+
+```typescript
+export async function onCustomerSupportReply(ctx, params) {
+    const { response, interactionId, customerId } = params;
+
+    // Save interactionId to DB to maintain conversation thread
+    await ctx.db.collection('conversations').updateOne(
+        { customerId },
+        {
+            $set: { lastInteractionId: interactionId },
+            $push: { messages: { role: 'model', text: response } }
+        },
+        { upsert: true }
+    );
+}
+
+// Next user message continuation:
+export async function handleCustomerFollowUp(ctx, { customerId, followUpMessage }) {
+    const convo = await ctx.db.collection('conversations').findOne({ customerId });
+
+    await ctx.ai.chat({
+        prompt: followUpMessage,
+        previousInteractionId: convo?.lastInteractionId, // Reuses cached context on the server
+        callbackRoute: 'handlers/ai_callbacks.onCustomerSupportReply',
+        callbackPayload: { customerId }
+    });
+}
+```
 
 `callbackContext` (when provided at enqueue time) is echoed back verbatim for
 callback bookkeeping.
@@ -309,6 +358,10 @@ Retry scheduling is queue-based with backoff and appears in the dashboard.
 - `callbackRoute` is required.
 - `workflowType` is required for `ctx.ai.enqueue`; `chat/oneShot/analyze` set it for you.
 - `enableGoogleSearch` must be a boolean when provided.
+- `temperature` must be between 0.0 and 2.0 when provided (default 0.5).
+- `topK` must be an integer between 1 and 100 when provided (default 40).
+- `topP` must be between 0.0 and 1.0 when provided (default 0.95).
+- `previousInteractionId` (or its aliases) must be a string when provided.
 - `fileIds` must be an array of non-empty strings when provided.
 - `maxRetries` must be 0..5 when provided.
 - `timeoutMs` must be 1000..120000 when provided.

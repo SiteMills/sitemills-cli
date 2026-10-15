@@ -68,7 +68,7 @@ At the top and sidebar of every project view:
 
 ### ⚙️ Settings Tab
 - **General**: Configure visibility, SEO indexing, and general project metadata.
-- **Custom Domains**: Bind custom apex domains or subdomains with automatic Cloudflare SSL issuance, GoDaddy DNS auto-configuration, and DNS challenge verification.
+- **Custom Domains**: Bind custom apex domains or subdomains with automatic SSL certificate issuance, GoDaddy DNS auto-configuration, and DNS challenge verification.
 - **Branding**: Upload crops of banners for the project's header.
 - **Payments**: Link a Stripe Connect account to process commercial sales. Toggles between Sandbox and Production modes.
 - **API Keys**: Register names, resolutions, and audit scopes for environment variables. Toggles plain vs masked secrets.
@@ -106,3 +106,65 @@ At the top and sidebar of every project view:
 ### 🤖 AI Workflows Tab
 - **Workflow Pipeline**: List of background asynchronous AI jobs.
 - **Details Modal**: Expand prompt sequences, responses, token counters, callback statuses, and credit charges.
+
+### 📋 Tasks, Bugs & Queues Tab
+- **Kanban Task Board**: Visual agile workflow organized across `ASSIGNED`, `IN_PROGRESS`, and `FIXED` columns. Supports drag-and-drop transitions, priority tagging (P0-P4), member assignees, and quick task creation.
+- **Dedicated Tickets & Requests Queue**: Filterable view isolating inbound issues, bug reports, and user feature requests.
+- **Backlog & Sprint History**: Unassigned task backlogs and chronological history of completed tasks.
+- **Structured Categories**:
+  - `FEATURE`: Planned sprint features and engineering deliverables.
+  - `FEATURE_REQUEST`: Inbound feature proposals and enhancement ideas requested by users, agents, or CLI.
+  - `INFRA_DOWN`: Critical service or platform downtime (P0).
+  - `PLATFORM_BUG`: Core platform defects, unhandled service errors, or API contract mismatches (P1).
+  - `AGENT_ERROR`: Runner, pipeline, or agentic loop exceptions and tool execution failures (P1).
+  - `USER_CODE_BUG`: Issues identified within the project's frontend or backend TypeScript handlers (P2).
+  - `USER_CONFIG_ERROR`: Misconfigured environment variables, custom domain DNS, or contract specifications (P2).
+  - `USER_SUPPORT`: User inquiries and operational assistance requests (P2).
+
+---
+
+## 5. Managing Tasks & Tickets via the CLI
+
+Developers and AI agents can query, create, and update tasks and tickets directly from the CLI:
+
+### 5.1 Listing Tasks
+Fetch the project's task board, with optional filtering by category or status:
+```bash
+# List all tasks across board
+sitemills-cli list-tasks <projectId>
+
+# List only feature requests
+sitemills-cli list-tasks <projectId> --category FEATURE_REQUEST
+
+# List only open bugs
+sitemills-cli list-tasks <projectId> --category USER_CODE_BUG --status ASSIGNED
+```
+
+### 5.2 Adding Tasks & Submitting Tickets
+Create a sprint task, report an issue, or submit a feature request:
+```bash
+# Create a standard sprint feature task
+sitemills-cli add-task <projectId> "Build checkout modal" "Implement Stripe checkout drawer" --priority 2
+
+# Submit a feature request
+sitemills-cli add-task <projectId> "Add dark mode toggle" "User requested dark mode in top navigation" --category FEATURE_REQUEST --priority 3
+
+# Report a platform or agent error
+sitemills-cli add-task <projectId> "500 Internal Server Error in push" "Cloud compilation failed with internal error" --category PLATFORM_BUG --priority 1
+
+# Report user code bug
+sitemills-cli add-task <projectId> "Null pointer in user_service.ts" "Cannot read properties of undefined on line 42" --category USER_CODE_BUG --priority 1
+```
+
+### 5.3 Updating Task Status & Assignment
+Update status, priority, category, or assignee as work progresses:
+```bash
+# Move task to IN_PROGRESS and assign to yourself
+sitemills-cli update-task <projectId> TASK-1234 --status IN_PROGRESS --assignee dev@example.com
+
+# Mark task as FIXED upon completion
+sitemills-cli update-task <projectId> TASK-1234 --status FIXED
+
+# Change task priority or category
+sitemills-cli update-task <projectId> TASK-1234 --priority 1 --category PLATFORM_BUG
+```

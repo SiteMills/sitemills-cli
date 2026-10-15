@@ -167,3 +167,21 @@ export async function deleteLeague(ctx, { leagueId }) {
 - Mutation caller not owner/admin for project → forbidden.
 - Resource path invalid for current runtime scope → validation error.
 - Unknown role or permission IDs in payloads → not found / conflict errors.
+
+## Website-only role delegation
+
+Use these methods when a website's own administrators (not SiteMills project collaborators) need to assign application roles to members. The existing `assignRole`, `updateAssignment`, `revokeRole`, definition-mutation and bootstrap methods keep their owner/admin requirements.
+
+A project owner creates application roles (non-system roles) and explicitly grants a website superadmin `rbac:assign` on `roles:<roleId>` for each role that person may assign. Grant exact role IDs, not a wildcard. The website must separately guard its member-management handlers so ordinary members cannot reach them.
+
+```typescript
+await ctx.permissions.grantWebsiteRole({ subjectId: memberEmail, roleId, scopeResource: '*' });
+await ctx.permissions.updateWebsiteRole(assignmentId, { subjectId: memberEmail, roleId, scopeResource: '*' });
+await ctx.permissions.revokeWebsiteRole(assignmentId);
+```
+
+- The platform derives the actor and project from the runtime context; do not pass `projectId` or actor fields.
+- Only existing non-system roles can be assigned. Platform/starter roles are rejected, even for an actor with a wildcard permission.
+- Each operation checks `rbac:assign` against that exact role. Updates require authorization for both the old and new roles and cannot change the member's identity.
+- Scope must be the current project's `*`.
+- These operations do not modify SiteMills collaborator access or grant platform administration. Keep project-owner recovery access outside the website's editable role set.

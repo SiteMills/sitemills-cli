@@ -42,67 +42,41 @@ SiteMills is designed around a high-performance, distributed cloud architecture 
 
 ---
 
-## 2. Sandbox Execution VM (`execute_script`)
+## 2. Server Runtime & Context (`ctx`)
 
-For batch file processing, AST-based codebase modification, and testing backend code, SiteMills features a V8 Isolate sandboxed virtual machine via the `execute_script` tool.
-
-### In-Memory Filesystem (`fs`)
-Scripts in the VM operate on a virtual, synchronous copy of the project files:
-- **Relative Path Resolution**: All paths are relative to the project root (e.g., `src/App.tsx`, `server/handlers.ts`).
-- `fs.readFile(path)`: Synchronously reads file content.
-- `fs.writeFile(path, content)`: Writes/overwrites file content.
-- `fs.exists(path)`: Checks file existence.
-- `fs.listFiles()`: List of all files in workspace.
-- `fs.grep(query)`: Ripgrep-style search.
-- `fs.replaceInFile(path, search, replacement)` / `fs.replaceInFiles(paths, search, replacement)`.
-- `fs.insertAfter(path, search, codeToInsert)` / `fs.insertBefore(path, search, codeToInsert)`.
-
-### System Interface (`sys`)
-Provides direct access to execute platform tasks:
-- `await sys.callTool('build_and_deploy', {})`: Asynchronously trigger project build.
-- `sys.dashboard.env`: Plaintext/masked secret get/set methods.
-- `sys.dashboard.permissions`: Role management and invitation actions.
-- `sys.project.deployAndTest()`: Build, deploy to sandbox branch, and execute tests.
-- `sys.backend.call(route, payload, userContext)`: Directly invoke a backend TypeScript handler within the isolate workspace with optional mock user permissions.
-
-*For more details, see the [`EXECUTE_SCRIPT_VM_GUIDE.md`](EXECUTE_SCRIPT_VM_GUIDE.md).*
+Backend handlers (`server/handlers.ts`) run in a sandboxed V8 isolate. Each handler receives a `ctx` object as its first argument, which gives access to the platform integrations listed below (for example `ctx.db`, `ctx.storage`, `ctx.ai`).
 
 ---
 
-## 3. Isolate Runtime & Context (`ctx`)
+## 3. Integration Support Grid
 
-When a user's backend handler (`server/handlers.ts`) runs in the sandbox isolate, it is passed a `ctx` object. The `ctx` object acts as the SDK bridge connecting the sandbox code to sitemills platform integrations.
-
-### SDK Bridge & Provider Design
-Methods invoked on the `ctx` object are intercepted by an internal **SDK Bridge**, which parses the integration prefix (e.g., `storage` from `ctx.storage.getUploadMetadata`) and delegates the execution to a registered `IntegrationProvider`.
-
----
-
-## 4. Integration Support Grid
-
-SiteMills defines a canonical lock-file of integration modules (`integrations.lock.json`). The table below outlines what services are supported, which are enabled inside the isolated backend runtime, and where to find their specific documentation:
+The table below lists the supported integrations, whether they are available on the server `ctx`, and where to find their documentation:
 
 | Integration ID | SDK Prefix | Isolate Runtime? | Frontend? | Documentation Reference |
 |---|---|:---:|:---:|---|
 | **`ai`** | `ctx.ai` | **Yes** | Yes | [`integrations/ctx-ai.md`](integrations/ctx-ai.md) |
+| **`dwolla`** | `ctx.dwolla` | **Yes** | No | [`integrations/ctx-dwolla.md`](integrations/ctx-dwolla.md) |
 | **`email`** | `ctx.email` | **Yes** | No | [`integrations/ctx-email.md`](integrations/ctx-email.md) |
 | **`env`** | `ctx.env` | **Yes** | No | [`integrations/ctx-env.md`](integrations/ctx-env.md) |
+| **`google-workspace`** | `ctx.googleWorkspace` | **Yes** | No | [`integrations/ctx-google-workspace.md`](integrations/ctx-google-workspace.md) |
 | **`googlemaps`**| `ctx.googlemaps` | **Yes** | No | [`integrations/ctx-googlemaps.md`](integrations/ctx-googlemaps.md) |
 | **`http`** | `ctx.httpClient` | **Yes** | No | [`integrations/ctx-http.md`](integrations/ctx-http.md) |
+| **`jobs`** | — | **Yes** | Yes | Background and recurring tasks in `server/jobs.ts`. See [`SCHEDULED_JOBS.md`](SCHEDULED_JOBS.md). |
+| **`logs`** | `ctx.logs` | **Yes** | Yes | [`integrations/ctx-logs.md`](integrations/ctx-logs.md) |
 | **`orders`** | `ctx.orders` | **Yes** | Yes | [`integrations/ctx-orders.md`](integrations/ctx-orders.md) |
 | **`p2p`** | `ctx.p2p` | **Yes** | No | [`integrations/ctx-p2p.md`](integrations/ctx-p2p.md) |
 | **`permissions`**| `ctx.permissions`| **Yes** | Yes | [`integrations/ctx-permissions.md`](integrations/ctx-permissions.md) |
+| **`plaid`** | `ctx.plaid` | **Yes** | No | [`integrations/ctx-plaid.md`](integrations/ctx-plaid.md) |
+| **`push`** | `ctx.push` | **Yes** | Yes | [`integrations/ctx-push.md`](integrations/ctx-push.md) |
 | **`queue`** | `ctx.queue` | **Yes** | No | [`integrations/ctx-queue.md`](integrations/ctx-queue.md) |
 | **`realtime`** | `ctx.realtime` | **Yes** | No | [`integrations/ctx-realtime.md`](integrations/ctx-realtime.md) |
 | **`sms`** | `ctx.sms` | **Yes** | No | [`integrations/ctx-sms.md`](integrations/ctx-sms.md) |
 | **`storage`** | `ctx.storage` | **Yes** | No | [`integrations/ctx-storage.md`](integrations/ctx-storage.md) |
 | **`analytics`** | — | **No** | Yes | *Frontend analytics only. Unsupported in server isolate.* |
-| **`jobs`** | — | **No** | Yes | *Platform console scheduled job dashboard config only. No isolate SDK.* |
-| **`logs`** | — | **No** | Yes | *Dashboard display only. Server handlers use `console.log`.* |
 
 ---
 
-## 5. Summary of Supported SDK Features
+## 4. Summary of Supported SDK Features
 
 - **Asynchronous AI Jobs (`ctx.ai`)**: Enqueue chat prompts and one-shot classifications that execute out-of-band and trigger callback routes. Support for model parameterization (e.g. `gemini-3-pro`, `gemini-3-flash-lite`), grounding via Google Search, and attaching project files.
 - **Outbound HTTP (`ctx.httpClient`)**: Full REST API clients enabling sandboxed code to request third-party resources.
@@ -112,6 +86,11 @@ SiteMills defines a canonical lock-file of integration modules (`integrations.lo
 - **Permissions RBAC (`ctx.permissions`)**: Check if an actor is authorized to perform specific resource-level actions.
 - **Background Tasks (`ctx.queue`)**: Schedule delayed workflows or defer compute-heavy actions.
 - **SMS & Text Messaging (`ctx.sms`)**: Send transactional notifications, OTP verification codes, and alerts to mobile numbers via a dedicated toll-free number (+1-866-645-5702). Supports delivery status webhooks and inbound reply tracking.
+- **WebRTC Peer-to-Peer (`ctx.p2p`)**: Ephemeral TURN/STUN credential issuance and mesh signaling channel setup for direct browser-to-browser audio, video, and data channels (up to 4 participants).
+- **Web Push Notifications (`ctx.push`)**: Send permission-based background web push notifications to subscribed user and guest browsers.
+- **ACH Bank Transfers & Verification (`ctx.dwolla`, `ctx.plaid`)**: Manage customer onboarding, bank funding sources, Plaid Link token exchange, and direct ACH bank-to-bank transfers.
+- **Google Workspace (`ctx.googleWorkspace`)**: Access connected Google Calendar, Drive, Docs, Sheets, and Gmail via dashboard-authorized OAuth credentials.
+- **Runtime Logging (`ctx.logs`)**: Structured logging from backend handlers (`log`, `info`, `warn`, `error`) visible in the dashboard.
 
 
 ---
