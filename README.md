@@ -262,11 +262,10 @@ sitemills-cli <command> [options]
   ```bash
   sitemills-cli seed <projectName> [outputDir]
   ```
-- **Folder commands** (`check`, `push`, `commit`, `deploy`): `[dir]` defaults to the current folder and must be a folder created by `export` or `import`. You can always pass `<projectId> <branchId> <dir>` instead.
+- **Folder commands** (`check`, `push`, `commit`, `deploy`): `[dir]` defaults to the current folder and must be a folder created by `export` or `import`. You can always pass `<projectId> [dir]` instead.
 - **export**: Download an app's code into a folder and link the folder to the app, so `check`, `push`, `commit`, and `deploy` work inside it without IDs.
   ```bash
   sitemills-cli export <projectId> [outputDir]              # Working Draft into ./<projectId> by default
-  sitemills-cli export <projectId> <branchId> <outputDir>
   ```
 - **commit** (or **save-snapshot**): Quickly save a code snapshot to a branch without triggering cloud compilation or tests (~100ms). Only files that differ from the remote branch are uploaded, and remote files missing locally are deleted (pass `--no-prune` to keep them). Automatically saves metadata to `.sitemills/build.json` in the local directory and records the build in `~/.sitemills/builds.json`.
   ```bash
@@ -282,7 +281,7 @@ sitemills-cli <command> [options]
   ```
 - **compile**: Trigger manual project code compilation for a branch and inspect diagnostics. Pass `--skip-tests` to bypass testing.
   ```bash
-  sitemills-cli compile <projectId> [--branch <branchId>] [--skip-tests]
+  sitemills-cli compile <projectId> [--skip-tests]
   ```
 - **deploy**: Deploy a branch to an environment (`dev`, `staging`, or `prod`).
   ```bash
@@ -294,7 +293,7 @@ sitemills-cli <command> [options]
   ```
 - **version-history**: View the timeline of code versions and checkpoints for a specific branch.
   ```bash
-  sitemills-cli version-history <projectId> [branchId] [--limit <limit>]
+  sitemills-cli version-history <projectId> [--limit <limit>]
   ```
 - **delete**: Delete a project on SiteMills.
   ```bash
@@ -334,7 +333,7 @@ Manage background and scheduled jobs defined in `contracts/jobs.json` and implem
 
 - **seed-db**: Seed database records for a project/branch from a JSON file.
   ```bash
-  sitemills-cli seed-db <projectId> <branchId> <dataFile.json>
+  sitemills-cli seed-db <projectId> <dataFile.json>
   ```
 - **data-copy** (or **clone-scope**): Clone all database collections and records from a source environment/scope to a target scope (e.g. from PROD to STAGING).
   ```bash
@@ -343,7 +342,7 @@ Manage background and scheduled jobs defined in `contracts/jobs.json` and implem
   ```
 - **data-op**: Execute structured database operations (query, count, seed, mutation preview, mutation apply, or inline Lua execution).
   ```bash
-  sitemills-cli data-op <projectId> <payloadJsonOrFile> [--branch <branchId>] [--env <environment>] [--mock-user <email>]
+  sitemills-cli data-op <projectId> <payloadJsonOrFile> [--env <environment>] [--mock-user <email>]
   ```
   *Inline Example:*
   ```bash
@@ -362,11 +361,11 @@ Manage background and scheduled jobs defined in `contracts/jobs.json` and implem
 
 - **logs**: Fetch runtime logs with optional branch, environment, and level filtering.
   ```bash
-  sitemills-cli logs <projectId> [--branch <branchId>] [--env <environment>] [--level <INFO|WARN|ERROR>] [--limit <limit>]
+  sitemills-cli logs <projectId> [--env <environment>] [--level <INFO|WARN|ERROR>] [--limit <limit>]
   ```
 - **workflows**: List recent AI/agentic workflows run on the project, including prompts, token consumption, and status.
   ```bash
-  sitemills-cli workflows <projectId> [--branch <branchId>] [--limit <limit>]
+  sitemills-cli workflows <projectId> [--limit <limit>]
   ```
 - **credits**: Query remaining credit and token usage balances for a project.
   ```bash
@@ -513,7 +512,6 @@ How the CLI stays current depends on how you installed it:
 - `--skip-tests`: Bypass automated test suite execution during push and compilation.
 - `--params <json>`: JSON payload parameters for on-demand job execution (`jobs run`).
 - `--reason <reason>`: Reason message when pausing a background job (`jobs pause`).
-- `--branch <branch>`: Target branch ID or branch data scope.
 - `--env <environment>`: Target environment name (`DEV`, `STAGING`, or `PROD`).
 - `--filter <filter>`: JSON query filter for `run-lua` (e.g. `'{"status":"pending"}'`).
 - `--dry-run`: Execute Lua script as a dry run simulation without applying database writes.
