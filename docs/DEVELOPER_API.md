@@ -56,7 +56,8 @@ Run `sitemills-cli login` to sign in through the browser. The CLI saves your tok
 
 | Concept | Description |
 |---------|-------------|
-| **projectId** | Unique identifier for a SiteMills project (auto-generated from project name, e.g. `my-portfolio-site`). |
+| **projectId** | Permanent, opaque identifier for a SiteMills project (a UUID for new projects; older projects keep IDs like `my-portfolio-site`). Don't build URLs from it. |
+| **slug** | The project's site address: the site is served at `https://<slug>.sitemills.com`. Derived from the project name on import; the owner can change it later, so read it from the API instead of storing your own copy. |
 | **branchId** | UUID identifying a specific branch/version within a project. Each project has at least one branch. Returned in the import response. |
 | **files** | A `Map<String, String>` where keys are relative file paths (e.g. `app.tsx`, `styles.css`, `server/handlers.ts`) and values are file contents. |
 | **snapshot** | An immutable point-in-time capture of all project files. Every code mutation creates a new snapshot. |
@@ -103,7 +104,7 @@ Content-Type: application/json
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `projectName` | string | **Yes** | Human-readable project name. Used to generate the projectId. |
+| `projectName` | string | **Yes** | Human-readable project name. Names don't have to be unique. The site address (`slug`) is derived from it and must be free. |
 | `seed` | boolean | No | When `true`, automatically scaffolds the project using the canonical SiteMills project template (app shell, backend handlers, contracts, PWA manifest, and service worker push notification handlers). |
 | `projectStructureType` | string | No | Project layout structure, defaults to `DIRECT`. |
 | `files` | `Map<String, String>` | Yes (unless `seed: true`) | Initial file paths → contents. Optional when `seed: true`. |
@@ -111,14 +112,16 @@ Content-Type: application/json
 **Response: `200 OK`**
 ```json
 {
-  "projectId": "my-portfolio-site",
+  "projectId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+  "slug": "my-portfolio-site",
+  "siteUrl": "https://my-portfolio-site.sitemills.com",
   "branchId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "success": true,
   "message": "Project imported successfully"
 }
 ```
 
-> **Save the `projectId` and `branchId`** — you'll need both for export and push.
+> **Save the `projectId` and `branchId`**: you'll need both for export and push. Use `siteUrl` (or `slug`) for the site's address, never the `projectId`.
 
 **Errors:**
 
@@ -126,7 +129,7 @@ Content-Type: application/json
 |------|--------|
 | `400` | Missing project name or empty files |
 | `401` | Missing, invalid, or expired token |
-| `409` | Project ID already exists |
+| `409` | The site address derived from the project name is already taken; choose a different name |
 
 ---
 
