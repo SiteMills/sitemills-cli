@@ -648,8 +648,8 @@ Generates a cryptographically signed JWT preview token for unauthenticated acces
 
 **Usage in URLs:**
 ```text
-https://<projectId>-dev.sitemills.com/?preview_token=<previewToken>
-https://<projectId>--<branchSlug>.sitemills.com/?preview_token=<previewToken>
+https://<site-address>-dev.sitemills.com/?preview_token=<previewToken>
+https://<site-address>--<branchSlug>.sitemills.com/?preview_token=<previewToken>
 ```
 
 ---

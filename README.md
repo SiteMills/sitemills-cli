@@ -108,9 +108,9 @@ SiteMills apps are built on declarative contracts, automatic RPC discovery, sand
 
 ```bash
 sitemills-cli login                    # 1. sign in through your browser
-sitemills-cli list                     # 2. find your app's ID
-sitemills-cli export <projectId>       # 3. download it into ./<projectId>
-cd <projectId>
+sitemills-cli list                     # 2. find your app's ID or site address
+sitemills-cli export <app>             # 3. download it (by ID or site address) into ./<app>
+cd <app>
 # 4. edit the files, then:
 sitemills-cli check                    #    compile your changes without saving anything
 sitemills-cli push                     #    upload your changes and update the branch preview
@@ -122,6 +122,7 @@ sitemills-cli deploy prod              # 5. go live (or dev / staging)
 - The `.sitemills/` folder is never uploaded, and it holds no secrets (your login token lives in `~/.sitemills`), so it's fine to commit it to your own git repo.
 - Need a specific branch or folder name? `sitemills-cli export <projectId> <branchId> <outputDir>`.
 - Every folder command also accepts the IDs explicitly: `sitemills-cli push <projectId> <branchId> <dir>`.
+- Wherever a command takes `<projectId>`, you can give the app's **site address** instead: the `<site-address>` in `https://<site-address>.sitemills.com`. `sitemills-cli list` shows both. Older apps have the same project ID and site address; newer apps have a separate project ID.
 
 ### Starting from your own code
 
@@ -146,17 +147,17 @@ SiteMills clearly distinguishes between the **Platform Management Dashboard** an
 
 | Purpose | URL / Hostname Pattern | Example |
 |---|---|---|
-| **Production Live Application (`PROD`)** | `https://<projectId>.sitemills.com` | `https://gradeprep.sitemills.com` |
-| **Staging Live Application (`STAGING`)** | `https://<projectId>-staging.sitemills.com` | `https://gradeprep-staging.sitemills.com` |
-| **Development Live Application (`DEV`)** | `https://<projectId>-dev.sitemills.com` | `https://gradeprep-dev.sitemills.com` |
-| **Branch Preview URL** | `https://<projectId>--<branchId>.sitemills.com/?preview_token=...` | `https://gradeprep--e4d7df82-24b2-4e3b-97ce-5aa4ba5a79ec.sitemills.com` |
+| **Production Live Application (`PROD`)** | `https://<site-address>.sitemills.com` | `https://gradeprep.sitemills.com` |
+| **Staging Live Application (`STAGING`)** | `https://<site-address>-staging.sitemills.com` | `https://gradeprep-staging.sitemills.com` |
+| **Development Live Application (`DEV`)** | `https://<site-address>-dev.sitemills.com` | `https://gradeprep-dev.sitemills.com` |
+| **Branch Preview URL** | `https://<site-address>--<branchId>.sitemills.com/?preview_token=...` | `https://gradeprep--e4d7df82-24b2-4e3b-97ce-5aa4ba5a79ec.sitemills.com` |
 | **Platform Project Console / IDE** | `https://sitemills.com/project/<projectId>` | `https://sitemills.com/project/gradeprep` |
 | **Project Planning Board** | `https://sitemills.com/project/<projectId>/planning` | `https://sitemills.com/project/gradeprep/planning` |
 | **Project Settings / Variables** | `https://sitemills.com/project/<projectId>/settings` | `https://sitemills.com/project/gradeprep/settings` |
 
 > [!WARNING]
 > **Important URL Distinction:**
-> - **Live Deployed Websites**: Web applications deployed to SiteMills are hosted on subdomains: `https://<projectId>.sitemills.com` for Production, `https://<projectId>-staging.sitemills.com` for Staging, and `https://<projectId>-dev.sitemills.com` for Dev.
+> - **Live Deployed Websites**: Web applications deployed to SiteMills are hosted on subdomains of their site address: `https://<site-address>.sitemills.com` for Production, `https://<site-address>-staging.sitemills.com` for Staging, and `https://<site-address>-dev.sitemills.com` for Dev. Build site links from the site address (`sitemills-cli info` shows it), never from the project ID.
 > - **Platform Console Dashboard**: The web dashboard is located at `https://sitemills.com/project/<projectId>` (singular `/project/`, **not** plural `/projects/`). Never link to `https://sitemills.com/projects/<projectId>` as that is an internal API route prefix (`/api/v1/projects/...`) and will fail to load in the browser.
 
 ## Preview Access Tokens & Non-Production Environments
@@ -184,7 +185,7 @@ Non-production environments (**DEV**, **STAGING**, and **Branch Previews**) are 
    - Their active session cookie (`USER_AUTH_TOKEN`) authorizes access directly to all permitted project environments.
 
 4. **Production Environments (`PROD`)**:
-   - Production URLs (`https://<projectId>.sitemills.com`) are always public and do not require authentication or preview tokens.
+   - Production URLs (`https://<site-address>.sitemills.com`) are always public and do not require authentication or preview tokens.
 
 ---
 

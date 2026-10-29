@@ -101,16 +101,16 @@ SiteMills clearly distinguishes between the **Platform Management Dashboard** an
 
 | Purpose | URL / Hostname Pattern | Access Policy | Example |
 |---|---|---|---|
-| **Production Live Application (`PROD`)** | `https://<projectId>.sitemills.com` | **Public** (no auth required) | `https://gradeprep.sitemills.com` |
-| **Staging Live Application (`STAGING`)** | `https://<projectId>-staging.sitemills.com` | **Private** (requires login or `?preview_token=...`) | `https://gradeprep-staging.sitemills.com/?preview_token=...` |
-| **Development Live Application (`DEV`)** | `https://<projectId>-dev.sitemills.com` | **Private** (requires login or `?preview_token=...`) | `https://gradeprep-dev.sitemills.com/?preview_token=...` |
-| **Branch Preview URL** | `https://<projectId>--<branchSlug>.sitemills.com` | **Private** (requires login or `?preview_token=...`) | `https://gradeprep--e4d7df82.sitemills.com/?preview_token=...` |
+| **Production Live Application (`PROD`)** | `https://<site-address>.sitemills.com` | **Public** (no auth required) | `https://gradeprep.sitemills.com` |
+| **Staging Live Application (`STAGING`)** | `https://<site-address>-staging.sitemills.com` | **Private** (requires login or `?preview_token=...`) | `https://gradeprep-staging.sitemills.com/?preview_token=...` |
+| **Development Live Application (`DEV`)** | `https://<site-address>-dev.sitemills.com` | **Private** (requires login or `?preview_token=...`) | `https://gradeprep-dev.sitemills.com/?preview_token=...` |
+| **Branch Preview URL** | `https://<site-address>--<branchSlug>.sitemills.com` | **Private** (requires login or `?preview_token=...`) | `https://gradeprep--e4d7df82.sitemills.com/?preview_token=...` |
 | **Platform Project Console / IDE** | `https://sitemills.com/project/<projectId>` | `https://sitemills.com/project/gradeprep` |
 | **Project Planning Board** | `https://sitemills.com/project/<projectId>/planning` | `https://sitemills.com/project/gradeprep/planning` |
 | **Project Settings / Variables** | `https://sitemills.com/project/<projectId>/settings` | `https://sitemills.com/project/gradeprep/settings` |
 
 > [!WARNING]
 > **Important URL Distinction:**
-> - **Live Deployed Websites**: Web applications deployed to SiteMills are hosted on subdomains: `https://<projectId>.sitemills.com` for Production, `https://<projectId>-staging.sitemills.com` for Staging, and `https://<projectId>-dev.sitemills.com` for Dev.
+> - **Live Deployed Websites**: Web applications deployed to SiteMills are hosted on subdomains of their site address: `https://<site-address>.sitemills.com` for Production, `https://<site-address>-staging.sitemills.com` for Staging, and `https://<site-address>-dev.sitemills.com` for Dev.
 > - **Platform Console Dashboard**: The web dashboard is located at `https://sitemills.com/project/<projectId>` (singular `/project/`, **not** plural `/projects/`). Never link to `https://sitemills.com/projects/<projectId>` as that is an internal API route prefix (`/api/v1/projects/...`) and will fail to load in the browser.
 
