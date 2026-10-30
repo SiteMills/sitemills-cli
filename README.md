@@ -411,9 +411,14 @@ Manage background and scheduled jobs defined in `contracts/jobs.json` and implem
   ```bash
   sitemills-cli env-list <projectId> <environment>
   ```
-- **env-set**: Create or update an environment variable or secret.
+- **env-set**: Create or update an environment variable or secret in the project Keystore (including Bring-Your-Own-Key credentials for `ctx.plaid` and `ctx.dwolla`).
   ```bash
   sitemills-cli env-set <projectId> <environment> <name> <value> [--description <desc>]
+  # Examples (Plaid & Dwolla BYOK):
+  sitemills-cli env-set <projectId> DEV PLAID_CLIENT_ID "your_plaid_client_id" --description "Plaid Client ID"
+  sitemills-cli env-set <projectId> DEV PLAID_SECRET "your_plaid_sandbox_secret" --description "Plaid Sandbox Secret"
+  sitemills-cli env-set <projectId> DEV DWOLLA_KEY "your_dwolla_app_key" --description "Dwolla App Key"
+  sitemills-cli env-set <projectId> DEV DWOLLA_SECRET "your_dwolla_sandbox_secret" --description "Dwolla Sandbox Secret"
   ```
 - **env-delete**: Remove an environment variable.
   ```bash

@@ -88,7 +88,7 @@ The table below lists the supported integrations, whether they are available on 
 - **SMS & Text Messaging (`ctx.sms`)**: Send transactional notifications, OTP verification codes, and alerts to mobile numbers via a dedicated toll-free number (+1-866-645-5702). Supports delivery status webhooks and inbound reply tracking.
 - **WebRTC Peer-to-Peer (`ctx.p2p`)**: Ephemeral TURN/STUN credential issuance and mesh signaling channel setup for direct browser-to-browser audio, video, and data channels (up to 4 participants).
 - **Web Push Notifications (`ctx.push`)**: Send permission-based background web push notifications to subscribed user and guest browsers.
-- **ACH Bank Transfers & Verification (`ctx.dwolla`, `ctx.plaid`)**: Manage customer onboarding, bank funding sources, Plaid Link token exchange, and direct ACH bank-to-bank transfers.
+- **ACH Bank Transfers & Verification (`ctx.dwolla`, `ctx.plaid` — BYOK)**: Manage customer onboarding, bank funding sources, Plaid Link token exchange, and direct ACH bank-to-bank transfers using your own API keys stored in the project Keystore (`PLAID_CLIENT_ID`, `PLAID_SECRET`, `DWOLLA_KEY`, `DWOLLA_SECRET` via `sitemills-cli env-set`).
 - **Google Workspace (`ctx.googleWorkspace`)**: Access connected Google Calendar, Drive, Docs, Sheets, and Gmail via dashboard-authorized OAuth credentials.
 - **Runtime Logging (`ctx.logs`)**: Structured logging from backend handlers (`log`, `info`, `warn`, `error`) visible in the dashboard.
 
