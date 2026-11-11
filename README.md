@@ -101,6 +101,7 @@ SiteMills apps are built on declarative contracts, automatic RPC discovery, sand
 | **[Server Runtime & RPC Conventions](docs/SERVER_RUNTIME_RPC.md)** | Automatic RPC discovery in `server/handlers/` without central hub re-exports, handler route aliasing, auto-generated stubs (`public/stubs/api-client.ts`), and strict cloud TypeScript compilation constraints (e.g. TS7006 implicit `any` parameter typing). | `sitemills-cli help rpc`<br>`sitemills-cli help typescript` |
 | **[Data Operations & Lua Runtime](docs/DATA_OPERATIONS_AND_LUA.md)** | Complete JSON schemas for `sitemills-cli data-op` (`query`, `count`, `seed`, `mutation_preview`, `mutation_apply`, `execute_lua`), sandboxed Lua runtime (`input.docs`, `input.metadata`, allowed/blocked globals, return table structure), and flag restrictions (`--mock-user` strictly rejected in PROD, `--max-write-ops` bounds). | `sitemills-cli help data-op`<br>`sitemills-cli help run-lua`<br>`sitemills-cli help flags` |
 | **[Error Diagnostics & Troubleshooting](docs/ERROR_DIAGNOSTICS_AND_TROUBLESHOOTING.md)** | Intelligent CLI error hint engine, debugging MongoDB queries (e.g. `$regex has to be a string`, unknown operators), TypeScript compilation errors, RPC routing mismatches, and mutation count drift. | `sitemills-cli help errors` |
+| **[Games Guide](docs/GAMES_GUIDE.md)** | 3D multiplayer games on the SiteMills game engine (Roblox's classes and services in TypeScript, rooms, phones): start from a starter game (`game create "<name>" --template racing`), what's in the folder, the engine's reference (`server/framework/ENGINE.md`), check, push and play; art and sound from the game asset library; 2D games with Phaser. Every starter game's files are in [docs/games/templates](docs/games/templates). | `sitemills-cli help games` |
 
 ---
 
@@ -230,6 +231,7 @@ sitemills-cli <command> [options]
   sitemills-cli help run-lua       # Lua runtime sandbox, APIs, globals, and return format
   sitemills-cli help flags         # CLI options, syntax examples, and environment restrictions
   sitemills-cli help errors        # Error diagnostics and troubleshooting reference
+  sitemills-cli help games         # Games: starter games on the engine, and art and sound from the asset library
   ```
   *Note:* You can also pass `--help` or `-h` to any command (e.g. `sitemills-cli data-op --help` or `sitemills-cli run-lua --help`).
 
@@ -445,6 +447,39 @@ Manage background and scheduled jobs defined in `contracts/jobs.json` and implem
   sitemills-cli set-branding <projectId> --banner <bannerMediaId> [--gallery <mediaId1,mediaId2>] [--video <showcaseVideoMediaId>]
   ```
 
+### Games
+
+3D multiplayer games on the SiteMills game engine: Roblox's classes and services in TypeScript. The platform supplies the engine; a starter game gives you a whole working game to make into yours. See the [Games Guide](docs/GAMES_GUIDE.md).
+
+- **game templates**: List the starter games (baseplate, obby, shooter, racing, rts, world).
+  ```bash
+  sitemills-cli game templates [--json]
+  ```
+- **game create**: Create a new app from a starter game, in a folder linked to it. The folder gets the game's files, the engine and its reference, `server/framework/ENGINE.md`. Each starter game's files are also readable in [docs/games/templates](docs/games/templates).
+  ```bash
+  sitemills-cli game create "<name>" [folder] --template <id>
+  sitemills-cli game create "Kart Party" --template racing
+  ```
+
+### Game Assets
+
+CC0 game art and sound for SiteMills projects: sprites, tiles, spritesheets, 3D models, sound effects and fonts. The files load on SiteMills sites only (a project's address, its previews and its custom domains). See the [Games Guide](docs/GAMES_GUIDE.md).
+
+- **game-assets kits**: List the hand-picked kits, one per genre.
+  ```bash
+  sitemills-cli game-assets kits [--json]
+  ```
+- **game-assets kit**: Show a kit's assets with their URLs, animation clips, grips and sockets, or write them into a project as `GAME_ASSETS`.
+  ```bash
+  sitemills-cli game-assets kit <id> [--write <file>] [--overwrite] [--json]
+  sitemills-cli game-assets kit 3d-shooter --write src/game/assets.ts
+  ```
+- **game-assets search**: Search the whole library, best match first.
+  ```bash
+  sitemills-cli game-assets search <words> [--kind <kind>] [--pack <pack>] [--limit <n>] [--json]
+  sitemills-cli game-assets search robot --kind MODEL
+  ```
+
 ### Stripe Payments & In-Person POS Terminal
 
 - **payments-status**: Fetch Stripe Connect payouts and configuration status.
@@ -535,3 +570,8 @@ How the CLI stays current depends on how you installed it:
 - `--no-indexable`: Disable search engine indexing for the project visibility settings.
 - `--no-update`: Disable automatic update checks for this command invocation.
 - `--force`: Force check and apply updates, ignoring local cache TTL.
+- `--kind <kind>`: Asset kind for `game-assets search` (`IMAGE`, `SPRITESHEET`, `MODEL`, `SOUND`, `FONT`).
+- `--pack <pack>`: Only assets from this pack, for `game-assets search` (a result's `pack`).
+- `--write <file>`: Write a kit's assets to this file as `GAME_ASSETS` (`game-assets kit`).
+- `--overwrite`: Let `--write` replace an existing file.
+- `--template <id>`: The starter game for `game create` (list them with `game templates`).
