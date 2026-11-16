@@ -150,47 +150,104 @@ export const client: ClientScript = ({ player, Workspace, RunService, UserInputS
 ### `server/game/place.ts`
 
 ```ts
-// Shooter: survive waves of zombies in a walled yard.
+// Shooter: survive waves of zombies in a fortified courtyard.
 // - Every player has a blaster (a Tool in StarterPack, copied into each Backpack). A click hurts the zombie they aimed
 //   at (player.GetMouse().Target, their client's view), if it's in range and nothing solid is between.
-// - Zombies are clones of a template in ServerStorage. Each walks at the nearest player (around crates with
-//   PathfindingService when it can't see them) and bites when close.
+// - Zombies are clones of a 3D animated template in ServerStorage. Each walks at the nearest player (around cover
+//   crates with PathfindingService when it can't see them) and strikes when close.
 // - A cleared wave starts a bigger one. Kills and a player's best wave are leaderstats; the best wave is kept in an
 //   ordered DataStore. The wave and the zombies left are attributes on Workspace, for the HUD.
-// - What makes it feel like a shooter: a flash and a bang at the muzzle, sparks where a shot lands, a zombie knocked
-//   back by a hit and a player by a bite (a BodyVelocity for a moment), zombies with their arms out, and a
-//   scoreboard on the yard's far wall (a SurfaceGui).
-import { Color3, ColorSequence, Enum, Instance, NumberRange, NumberSequence, RaycastParams, UDim, UDim2, Vector2, Vector3, defaultCharacter, CFrame } from "../framework/index"
-import type { BasePart, EnginePlace, Humanoid, IntValue, Model, Motor6D, Player, PointLight, Sound, Tool } from "../framework/index"
+import {
+  CFrame,
+  Color3,
+  ColorSequence,
+  Enum,
+  Instance,
+  NumberRange,
+  NumberSequence,
+  RaycastParams,
+  UDim,
+  UDim2,
+  Vector2,
+  Vector3,
+  modelCharacter,
+  type BasePart,
+  type EnginePlace,
+  type GameShellConfig,
+  type Humanoid,
+  type IntValue,
+  type Model,
+  type Motor6D,
+  type Player,
+  type PointLight,
+  type Sound,
+  type Tool,
+} from "../framework/index"
 
-/**
- * A short sound as a WAV data URL (8-bit mono, 8,000 samples a second), so the game needs no sound files: `wave` gives
- * each sample from -1 to 1, from the seconds in and how far through (0 to 1). A game with real sounds searches the
- * game asset library for them instead.
- */
-function sound(seconds: number, wave: (t: number, through: number) => number): string {
-  const rate = 8000
-  const n = Math.floor(seconds * rate)
-  const number = (value: number, bytes: number) => Array.from({ length: bytes }, (_, i) => Math.floor(value / 256 ** i) % 256)
-  const text = (value: string) => value.split("").map((c) => c.charCodeAt(0))
-  const bytes = [...text("RIFF"), ...number(36 + n, 4), ...text("WAVEfmt "), ...number(16, 4), ...number(1, 2), ...number(1, 2), ...number(rate, 4), ...number(rate, 4), ...number(1, 2), ...number(8, 2), ...text("data"), ...number(n, 4)]
-  for (let i = 0; i < n; i++) bytes.push(Math.max(0, Math.min(255, Math.round(128 + 110 * wave(i / rate, i / n)))))
-  const abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-  let out = ""
-  for (let i = 0; i < bytes.length; i += 3) {
-    const [a, b = 0, c = 0] = [bytes[i], bytes[i + 1], bytes[i + 2]]
-    out += abc[a >> 2] + abc[((a & 3) << 4) | (b >> 4)] + (i + 1 < bytes.length ? abc[((b & 15) << 2) | (c >> 6)] : "=") + (i + 2 < bytes.length ? abc[c & 63] : "=")
-  }
-  return `data:audio/wav;base64,${out}`
+const DEFENDER_URL = "https://game-assets.sitemills.com/library/kenney/blocky-characters/960fb9d7961f/Models/GLB-format/character-m.glb"
+const ZOMBIE_URL = "https://game-assets.sitemills.com/library/kenney/mini-dungeon/0b0b44e6d2bc/Models/GLB-format/character-orc.glb"
+const BLASTER_URL = "https://game-assets.sitemills.com/library/kenney/blaster-kit/bda17d928fa2/Models/GLB-format/blaster-d.glb"
+const CRATE_URL = "https://game-assets.sitemills.com/library/kenney/prototype-kit/e61e26421cef/Models/GLB-format/crate-color.glb"
+const CARGO_URL = "https://game-assets.sitemills.com/library/kenney/space-station-kit/e87a95009d27/Models/GLB-format/container.glb"
+const TOWER_BASE_URL = "https://game-assets.sitemills.com/library/kenney/castle-kit/a2095edf1a6e/Models/GLB-format/tower-square-base.glb"
+const TOWER_ROOF_URL = "https://game-assets.sitemills.com/library/kenney/castle-kit/a2095edf1a6e/Models/GLB-format/tower-square-roof.glb"
+const BANNER_URL = "https://game-assets.sitemills.com/library/kenney/castle-kit/a2095edf1a6e/Models/GLB-format/flag-banner-long.glb"
+const SHOT_SOUND_URL = "https://game-assets.sitemills.com/library/kenney/sci-fi-sounds/aa1026bb4c50/Audio/laserSmall_000.ogg"
+const BITE_SOUND_URL = "https://game-assets.sitemills.com/library/kenney/impact-sounds/0a420c43ff99/Audio/impactPunch_medium_000.ogg"
+const CLEAR_SOUND_URL = "https://game-assets.sitemills.com/library/kenney/synth-voice-2/1aa97678ca2a/Audio/victory.ogg"
+
+export const shell: GameShellConfig = {
+  title: "Bastion Holdout",
+  subtitle: "Defend the stone courtyard against escalating waves, use supply crates as cover, and climb the wall leaderboard.",
+  modes: [
+    {
+      id: "coop-holdout",
+      name: "Co-op Holdout",
+      description: "1–8 defenders survive escalating waves together.",
+      minPlayers: 1,
+      maxPlayers: 8,
+    },
+    {
+      id: "solo-holdout",
+      name: "Solo Stand",
+      description: "Hold the courtyard alone for a personal wave record.",
+      minPlayers: 1,
+      maxPlayers: 1,
+    },
+  ],
+  howToPlay: [
+    "Equip your Blaster (1 key or backpack tap) and click or tap incoming raiders to fire.",
+    "Shots knock enemies back; kite around crates and clear every wave to push your best score higher.",
+  ],
 }
-// A bang (noise that dies away fast, over a thump) and a growl (a low note that wobbles).
-let hiss = 1
-const SHOT = sound(0.12, (t, k) => (((hiss = (hiss * 16807) % 2147483647) / 2147483647) * 2 - 1) * (1 - k) ** 3 * 0.8 + Math.sin(2 * Math.PI * 150 * t) * (1 - k) ** 2 * 0.5)
-const BITE = sound(0.3, (t, k) => Math.sin(2 * Math.PI * (95 + 30 * Math.sin(2 * Math.PI * 11 * t)) * t) * Math.sin(Math.PI * k) * 0.9)
 
-export const place: EnginePlace = ({ Workspace, Lighting, Players, ServerStorage, StarterPack, StarterGui, CollectionService, PathfindingService, DataStoreService, Debris, task }) => {
-  // Late afternoon: a low sun and long shadows, still bright enough to see across the yard.
+export const place: EnginePlace = ({
+  Workspace,
+  Lighting,
+  Players,
+  StarterPlayer,
+  ServerStorage,
+  StarterPack,
+  StarterGui,
+  CollectionService,
+  PathfindingService,
+  DataStoreService,
+  Debris,
+  task,
+}) => {
+  // Late afternoon: golden low sun and crisp courtyard shadows.
   Lighting.ClockTime = 16.5
+  new Instance("Sky", Lighting)
+
+  const defender = modelCharacter("StarterCharacter", DEFENDER_URL, {
+    idle: "idle",
+    walk: "walk",
+    run: "sprint",
+    die: "die",
+    wave: "emote-yes",
+  })
+  defender.Parent = StarterPlayer
+
   const block = (size: Vector3, at: Vector3, color: Color3, material = Enum.Material.Concrete) => {
     const p = new Instance("Part")
     p.Anchored = true
@@ -201,17 +258,49 @@ export const place: EnginePlace = ({ Workspace, Lighting, Players, ServerStorage
     p.Parent = Workspace
     return p
   }
-  // The yard: a floor, four walls, and crates for cover.
-  block(new Vector3(160, 2, 160), new Vector3(0, -1, 0), Color3.fromRGB(96, 104, 88))
-  for (const [x, z, w, d] of [[0, 80, 160, 2], [0, -80, 160, 2], [80, 0, 2, 160], [-80, 0, 2, 160]]) {
-    block(new Vector3(w, 14, d), new Vector3(x, 7, z), Color3.fromRGB(120, 110, 100), Enum.Material.Brick)
+  const meshProp = (name: string, meshId: string, size: Vector3, cf: CFrame, collide = true) => {
+    const m = new Instance("MeshPart")
+    m.Name = name
+    m.MeshId = meshId
+    m.Anchored = true
+    m.CanCollide = collide
+    if (!collide) {
+      m.CanTouch = false
+      m.CanQuery = false
+    }
+    m.Size = size
+    m.CFrame = cf
+    m.Parent = Workspace
+    return m
   }
-  for (const [x, z] of [[-30, -20], [25, -35], [-40, 30], [35, 25], [0, 45], [12, -12]]) {
-    block(new Vector3(8, 6, 8), new Vector3(x, 3, z), Color3.fromRGB(150, 110, 60), Enum.Material.Wood)
+
+  // Courtyard stone floor, perimeter ramparts, corner watchtowers, and supply crates for cover.
+  block(new Vector3(160, 2, 160), new Vector3(0, -1, 0), Color3.fromRGB(122, 118, 110), Enum.Material.Cobblestone)
+  for (const [x, z, w, d] of [[0, 80, 160, 3], [0, -80, 160, 3], [80, 0, 3, 160], [-80, 0, 3, 160]]) {
+    block(new Vector3(w, 14, d), new Vector3(x, 7, z), Color3.fromRGB(132, 120, 108), Enum.Material.Brick)
   }
+  for (const [cx, cz] of [[-80, -80], [80, -80], [-80, 80], [80, 80]] as const) {
+    meshProp("CornerTower", TOWER_BASE_URL, new Vector3(14, 16, 14), new CFrame(cx, 8, cz), false)
+    meshProp("CornerRoof", TOWER_ROOF_URL, new Vector3(14, 22, 14), new CFrame(cx, 26, cz), false)
+  }
+  for (const side of [-22, 22]) {
+    meshProp("WallBanner", BANNER_URL, new Vector3(0.6, 18, 5.2), new CFrame(side, 9, -78).mul(CFrame.Angles(0, Math.PI / 2, 0)), false)
+  }
+  const coverSpots: [number, number][] = [[-38, -16], [25, -35], [-40, 30], [35, 25], [0, 45], [22, -8]]
+  coverSpots.forEach(([x, z], i) => {
+    meshProp(
+      "CoverCrate",
+      i % 2 === 0 ? CARGO_URL : CRATE_URL,
+      new Vector3(8, 6, 8),
+      new CFrame(x, 3, z).mul(CFrame.Angles(0, (i % 4) * (Math.PI / 2), 0)),
+      true,
+    )
+  })
   const spawn = new Instance("SpawnLocation")
-  spawn.Size = new Vector3(12, 1, 12)
-  spawn.Position = new Vector3(0, 0.5, 0)
+  spawn.Size = new Vector3(12, 0.8, 12)
+  spawn.Position = new Vector3(0, 0.4, 0)
+  spawn.Color = Color3.fromRGB(185, 178, 164)
+  spawn.Material = Enum.Material.Marble
   spawn.Parent = Workspace
 
   // Each player's stats; the best wave is loaded from (and saved to) an ordered store, so it can be a leaderboard.
@@ -229,20 +318,19 @@ export const place: EnginePlace = ({ Workspace, Lighting, Players, ServerStorage
     showBoard()
   })
 
-  // The blaster. Each player's copy comes into the game as their character spawns; the tag gives every copy its shot.
+  // The blaster: a 3D sci-fi rifle MeshPart Handle with muzzle sound and flash.
   const blaster = new Instance("Tool")
   blaster.Name = "Blaster"
   blaster.AddTag("Blaster")
-  const barrel = new Instance("Part")
+  blaster.Grip = CFrame.Angles(0, Math.PI, 0)
+  const barrel = new Instance("MeshPart")
   barrel.Name = "Handle"
-  barrel.Size = new Vector3(0.5, 0.6, 2.4)
-  barrel.Color = Color3.fromRGB(40, 44, 56)
-  barrel.Material = Enum.Material.Metal
+  barrel.MeshId = BLASTER_URL
+  barrel.Size = new Vector3(0.7, 1.4, 3.2)
   barrel.Parent = blaster
-  // Its bang, and the flash at its muzzle (lit for a moment by each shot).
   const bang = new Instance("Sound", barrel)
   bang.Name = "Shot"
-  bang.SoundId = SHOT
+  bang.SoundId = SHOT_SOUND_URL
   const flash = new Instance("PointLight", barrel)
   flash.Name = "Flash"
   flash.Color = Color3.fromRGB(255, 220, 120)
@@ -250,6 +338,7 @@ export const place: EnginePlace = ({ Workspace, Lighting, Players, ServerStorage
   flash.Range = 14
   flash.Enabled = false
   blaster.Parent = StarterPack
+
   /** A shove along the ground for a moment: a mover on its root, and it slides to a stop when the mover goes. */
   const shove = (root: BasePart, away: Vector3, speed: number, seconds: number) => {
     const flat = new Vector3(away.X, 0, away.Z)
@@ -260,8 +349,7 @@ export const place: EnginePlace = ({ Workspace, Lighting, Players, ServerStorage
     push.Parent = root
     Debris.AddItem(push, seconds)
   }
-  // Sparks where a shot lands: one emitter for the yard, moved to each hit and burst there. (An emitter made for
-  // each hit wouldn't show: a page bursts what's emitted after it has the emitter.)
+  // Sparks where a shot lands: one emitter for the yard, moved to each hit and burst there.
   const sparkPoint = new Instance("Part")
   sparkPoint.Name = "Sparks"
   sparkPoint.Anchored = true
@@ -276,7 +364,7 @@ export const place: EnginePlace = ({ Workspace, Lighting, Players, ServerStorage
   burst.Lifetime = new NumberRange(0.2, 0.4)
   burst.Speed = new NumberRange(8, 14)
   burst.SpreadAngle = new Vector2(180, 180)
-  burst.Color = new ColorSequence(Color3.fromRGB(200, 255, 120), Color3.fromRGB(60, 120, 40))
+  burst.Color = new ColorSequence(Color3.fromRGB(255, 225, 120), Color3.fromRGB(220, 90, 40))
   burst.Size = new NumberSequence(0.35, 0)
   sparkPoint.Parent = Workspace
   const sparks = (at: Vector3) => {
@@ -289,7 +377,6 @@ export const place: EnginePlace = ({ Workspace, Lighting, Players, ServerStorage
     const head = player?.Character?.FindFirstChild("Head") as BasePart | undefined
     const handle = tool.Handle
     if (!player || !head || !handle) return
-    // A shot every 0.25 seconds at most, whatever the client sends.
     const now = Workspace.DistributedGameTime
     if (now - (lastShot.get(tool) ?? -1) < 0.25) return
     lastShot.set(tool, now)
@@ -313,7 +400,6 @@ export const place: EnginePlace = ({ Workspace, Lighting, Players, ServerStorage
     const wall = Workspace.Raycast(head.Position, to, params)
     if (wall && wall.Instance.CanCollide) return
     humanoid.TakeDamage(34)
-    // It's hit: sparks where the shot landed, and it's knocked back from the shooter.
     sparks(mouse.Hit.Position)
     const hitRoot = zombie.FindFirstChild("HumanoidRootPart") as BasePart | undefined
     if (hitRoot) shove(hitRoot, hitRoot.Position.sub(head.Position), 18, 0.12)
@@ -339,19 +425,28 @@ export const place: EnginePlace = ({ Workspace, Lighting, Players, ServerStorage
   for (const t of CollectionService.GetTagged("Blaster")) wire(t as Tool)
   CollectionService.GetInstanceAddedSignal("Blaster").Connect((t) => wire(t as Tool))
 
-  // The zombie template: a character, green, a little slower than a player.
-  const template = defaultCharacter("Zombie")
-  for (const part of template.GetChildren()) {
-    if (part.Name === "Head" || part.Name.endsWith("Arm")) (part as BasePart).Color = Color3.fromRGB(110, 160, 90)
-  }
+  // The zombie template: an animated 3D orc-raider character, slightly slower than a player.
+  const template = modelCharacter("Zombie", ZOMBIE_URL, {
+    idle: "idle",
+    walk: "walk",
+    run: "sprint",
+    jump: "jump",
+    fall: "fall",
+    die: "die",
+  })
   const zombieHumanoid = template.FindFirstChildOfClass("Humanoid") as Humanoid
   zombieHumanoid.WalkSpeed = 12
   template.AddTag("Zombie")
   template.Parent = ServerStorage
-  // A bite's growl (one for the yard, heard by everyone).
+
   const growl = new Instance("Sound", Workspace)
   growl.Name = "Bite"
-  growl.SoundId = BITE
+  growl.SoundId = BITE_SOUND_URL
+  const waveFanfare = new Instance("Sound", Workspace)
+  waveFanfare.Name = "WaveCleared"
+  waveFanfare.SoundId = CLEAR_SOUND_URL
+  const biteAnim = new Instance("Animation")
+  biteAnim.AnimationId = "attack-melee-right"
 
   const nearestCharacter = (from: Vector3) => {
     let best: BasePart | undefined
@@ -366,6 +461,7 @@ export const place: EnginePlace = ({ Workspace, Lighting, Players, ServerStorage
   const chase = async (zombie: Model) => {
     const humanoid = zombie.FindFirstChildOfClass("Humanoid") as Humanoid
     const root = zombie.FindFirstChild("HumanoidRootPart") as BasePart
+    const strike = humanoid.LoadAnimation(biteAnim)
     const path = PathfindingService.CreatePath({ AgentRadius: 2, AgentHeight: 5, AgentCanJump: false })
     let bitAt = -1
     while (humanoid.Health > 0 && zombie.Parent) {
@@ -376,7 +472,6 @@ export const place: EnginePlace = ({ Workspace, Lighting, Players, ServerStorage
         const blocked = Workspace.Raycast(root.Position, gap, sight)
         if (!blocked) humanoid.MoveTo(target.Position)
         else {
-          // Behind cover: a few waypoints along a path round it.
           await path.ComputeAsync(root.Position, target.Position)
           const waypoints = path.GetWaypoints()
           humanoid.MoveTo(path.Status === Enum.PathStatus.Success ? waypoints[Math.min(2, waypoints.length - 1)].Position : target.Position)
@@ -385,6 +480,7 @@ export const place: EnginePlace = ({ Workspace, Lighting, Players, ServerStorage
         const now = Workspace.DistributedGameTime
         if (victim && gap.Magnitude < 4.5 && now - bitAt > 1) {
           bitAt = now
+          strike.Play()
           victim.TakeDamage(15)
           growl.Play()
           shove(target, gap, 22, 0.18)
@@ -407,7 +503,7 @@ export const place: EnginePlace = ({ Workspace, Lighting, Players, ServerStorage
       const zombie = template.Clone()
       zombie.PivotTo(new CFrame(corners[i % corners.length].add(new Vector3((i % 3) * 4, 0, 0))))
       zombie.Parent = Workspace
-      // Arms out in front, as zombies hold them: each shoulder turned a quarter (they still swing as it walks).
+      // Arms out in front on the underlying hit-rig, as zombies hold them.
       for (const [name, turn] of [["Right Shoulder", Math.PI / 2], ["Left Shoulder", -Math.PI / 2]] as const) {
         const shoulder = zombie.FindFirstChild("Torso")?.FindFirstChild(name) as Motor6D | undefined
         if (shoulder) shoulder.C0 = shoulder.C0.mul(CFrame.Angles(0, 0, turn))
@@ -424,6 +520,7 @@ export const place: EnginePlace = ({ Workspace, Lighting, Players, ServerStorage
     }
   }
   const cleared = async (wave: number) => {
+    waveFanfare.Play()
     for (const player of Players.GetPlayers()) {
       const best = stat(player, "Best")
       if (best && wave > best.Value) {
@@ -434,8 +531,9 @@ export const place: EnginePlace = ({ Workspace, Lighting, Players, ServerStorage
     await task.wait(5)
     void runWave(wave + 1)
   }
+
   // The scoreboard on the far wall, facing the spawn: the wave, the zombies left, and the players' best waves.
-  const board = block(new Vector3(26, 9, 0.6), new Vector3(0, 8, -78.6), Color3.fromRGB(24, 26, 34), Enum.Material.Metal)
+  const board = block(new Vector3(26, 9, 0.6), new Vector3(0, 8, -78.2), Color3.fromRGB(24, 26, 34), Enum.Material.Metal)
   board.Name = "Board"
   const screen = new Instance("SurfaceGui", board)
   screen.Face = Enum.NormalId.Back
@@ -470,7 +568,6 @@ export const place: EnginePlace = ({ Workspace, Lighting, Players, ServerStorage
   Workspace.GetAttributeChangedSignal("Left").Connect(showBoard)
   Players.PlayerRemoving.Connect(() => task.defer(showBoard))
   showBoard()
-  // The first wave starts when the first player arrives.
   let started = false
   Players.PlayerAdded.Connect(() => {
     if (started) return
@@ -487,7 +584,7 @@ export const place: EnginePlace = ({ Workspace, Lighting, Players, ServerStorage
     l.Size = UDim2.fromOffset(220, 36)
     l.Position = UDim2.fromOffset(16, y)
     l.BackgroundColor3 = Color3.fromRGB(20, 24, 36)
-    l.BackgroundTransparency = 0.3
+    l.BackgroundTransparency = 0.25
     l.BorderSizePixel = 0
     l.TextColor3 = Color3.fromRGB(255, 255, 255)
     l.Font = Enum.Font.GothamBold
@@ -576,11 +673,12 @@ describe("the shooter", () => {
 ### `server/rooms/game_room.ts`
 
 ```ts
-import { engineRoom } from "../framework/index"
-import { place } from "../game/place"
+import { engineRoom, type GameShellConfig } from "../framework/index"
+import * as gamePlace from "../game/place"
 
 // The game's server: a room runs the place, and each player who opens the page joins it.
-sdk.registerRoom("game", engineRoom(place, { maxPlayers: 16 }))
+const { place, shell } = gamePlace as typeof gamePlace & { shell?: GameShellConfig }
+sdk.registerRoom("game", engineRoom(place, { maxPlayers: 16, shell }))
 ```
 
 ### `sitemills.json`
@@ -853,42 +951,52 @@ createRoot(document.getElementById("root")!).render(
 ```tsx
 import { useEffect, useRef, useState } from "react"
 import RAPIER from "@dimforge/rapier3d-compat"
-import { joinRoom } from "@/api/room-client"
-import { playOnline, playSolo } from "@/framework/index"
+import { createRoom, joinRoom, joinRoomByCode, listRooms } from "@/api/room-client"
+import { mountGameShell, type GameShellConfig } from "@/framework/index"
 import { client } from "../../server/game/client"
-import { place } from "../../server/game/place"
+import * as gamePlace from "../../server/game/place"
 
 /**
- * The game. Everyone who opens the page plays together in a room (server/rooms/game_room.ts runs the place there);
- * with ?solo in the address, it plays alone in the page. With ?debug, window.__game is the game's view (its engine,
- * localPlayer and, alone, the server's engine) for checking it from the browser console or a test.
+ * The game page: opens on the game shell overlay (title screen, modes, server browser, private room codes, how to play,
+ * and graphics/audio settings) backed by a live 3D preview. With `?solo` it plays alone in the page; with `?code=...`,
+ * `?room=...`, or `?autojoin` it enters a room immediately. With `?debug`, `window.__game` exposes the active game view.
  */
 export function GamePage() {
+  const container = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
   const [problem, setProblem] = useState<string | null>(null)
   useEffect(() => {
-    let stop: (() => void) | null = null
+    let dispose: (() => void) | null = null
     let gone = false
     void (async () => {
       await RAPIER.init()
-      if (gone || !canvas.current) return
-      const solo = new URLSearchParams(window.location.search).has("solo")
-      const game = solo
-        ? await playSolo({ canvas: canvas.current, physics: RAPIER, place, client })
-        : await playOnline({ canvas: canvas.current, physics: RAPIER, client, room: await joinRoom("game", { roomId: "auto" }) })
-      if (gone) game.stop()
-      else stop = () => game.stop()
-      if (new URLSearchParams(window.location.search).has("debug")) (window as unknown as { __game: unknown }).__game = game
+      if (gone || !canvas.current || !container.current) return
+      const shellConfig = (gamePlace as { shell?: GameShellConfig }).shell
+      const shell = await mountGameShell({
+        canvas: canvas.current,
+        container: container.current,
+        physics: RAPIER,
+        place: gamePlace.place,
+        client,
+        shell: shellConfig,
+        rooms: { joinRoom, listRooms, createRoom, joinRoomByCode },
+        onError: (msg) => setProblem(msg),
+        onGameChange: (g) => {
+          if (g) setProblem(null)
+        },
+      })
+      if (gone) shell.dispose()
+      else dispose = () => shell.dispose()
     })().catch((error: unknown) => setProblem(error instanceof Error ? error.message : String(error)))
     return () => {
       gone = true
-      stop?.()
+      dispose?.()
     }
   }, [])
   return (
-    <div className="relative h-svh w-full select-none overflow-hidden bg-black">
+    <div ref={container} className="relative h-svh w-full select-none overflow-hidden bg-black">
       <canvas ref={canvas} className="block h-full w-full" />
-      {problem && <div className="absolute inset-x-0 top-4 mx-auto w-fit max-w-[90%] rounded-lg bg-red-600 px-4 py-2 text-sm text-white">{problem}</div>}
+      {problem && <div className="absolute inset-x-0 top-4 z-30 mx-auto w-fit max-w-[90%] rounded-lg bg-red-600 px-4 py-2 text-sm text-white">{problem}</div>}
     </div>
   )
 }

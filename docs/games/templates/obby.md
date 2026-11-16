@@ -152,13 +152,80 @@ export const client: ClientScript = ({ player, RunService, ReplicatedStorage, ta
 
 ```ts
 // Obby: an obstacle course in the sky. Platforms with gaps, lava that sends you back to your last checkpoint, a moving
-// platform and a spinner; each checkpoint (a SpawnLocation) is a stage, kept between visits; the finish records each
-// player's best time in an ordered DataStore, and tells their client (a RemoteEvent) for the HUD.
-import { CFrame, Color3, Enum, Instance, TweenInfo, UDim, UDim2, Vector3, type BasePart, type EnginePlace, type IntValue, type Player, type SpawnLocation } from "../framework/index"
+// platform and a spinning saw hazard; each checkpoint (a SpawnLocation) is a stage, kept between visits; the finish
+// records each player's best time in an ordered DataStore, and tells their client (a RemoteEvent) for the HUD.
+import {
+  CFrame,
+  Color3,
+  Enum,
+  Instance,
+  TweenInfo,
+  UDim,
+  UDim2,
+  Vector3,
+  modelCharacter,
+  type BasePart,
+  type EnginePlace,
+  type GameShellConfig,
+  type IntValue,
+  type Player,
+  type SpawnLocation,
+} from "../framework/index"
 
-export const place: EnginePlace = ({ Workspace, Lighting, Players, ReplicatedStorage, StarterGui, TweenService, RunService, DataStoreService }) => {
-  Lighting.ClockTime = 9
+const HERO_URL = "https://game-assets.sitemills.com/library/quaternius/ultimate-platformer-pack/9de203bd37df/Character/glTF/Character.glb"
+const CLIFF_URL = "https://game-assets.sitemills.com/library/quaternius/ultimate-platformer-pack/9de203bd37df/Nature/glTF/RockPlatforms_1.glb"
+const TREE_URL = "https://game-assets.sitemills.com/library/quaternius/ultimate-platformer-pack/9de203bd37df/Nature/glTF/Tree.glb"
+const CLOUD_URL = "https://game-assets.sitemills.com/library/quaternius/ultimate-platformer-pack/9de203bd37df/Nature/glTF/Cloud_1.glb"
+const SAW_URL = "https://game-assets.sitemills.com/library/quaternius/ultimate-platformer-pack/9de203bd37df/Level-and-Mechanics/glTF/Hazard_Saw.glb"
+const STAGE_FLAG_URL = "https://game-assets.sitemills.com/library/kenney/platformer-kit/4a5f431c270c/Models/GLB-format/flag.glb"
+const GOAL_FLAG_URL = "https://game-assets.sitemills.com/library/quaternius/ultimate-platformer-pack/9de203bd37df/Level-and-Mechanics/glTF/Goal_Flag.glb"
+const CHEST_URL = "https://game-assets.sitemills.com/library/quaternius/ultimate-platformer-pack/9de203bd37df/Level-and-Mechanics/glTF/Chest.glb"
+const CHECKPOINT_SOUND_URL = "https://game-assets.sitemills.com/library/kenney/new-platformer-pack/aea712aa52d7/Sounds/sfx_magic.ogg"
+const FINISH_SOUND_URL = "https://game-assets.sitemills.com/library/kenney/synth-voice-2/1aa97678ca2a/Audio/levelComplete.ogg"
+
+export const shell: GameShellConfig = {
+  title: "Skyward Trials",
+  subtitle: "Leap across floating sky islands, dodge spinning saw blades, and race the clock to the summit chest.",
+  modes: [
+    {
+      id: "sky-course",
+      name: "Sky Course",
+      description: "4-stage sky obby with saved checkpoints and best-time records.",
+      minPlayers: 1,
+      maxPlayers: 12,
+    },
+  ],
+  howToPlay: [
+    "Run with WASD or the thumbstick and jump with Space.",
+    "Step onto each emerald stage pad to save your checkpoint, clear the lava and saw spinner, and touch the golden finish pad.",
+  ],
+}
+
+export const place: EnginePlace = ({
+  Workspace,
+  Lighting,
+  Players,
+  StarterPlayer,
+  ReplicatedStorage,
+  StarterGui,
+  TweenService,
+  RunService,
+  DataStoreService,
+}) => {
+  Lighting.ClockTime = 10.5
+  new Instance("Sky", Lighting)
   Workspace.FallenPartsDestroyHeight = -60
+
+  const hero = modelCharacter("StarterCharacter", HERO_URL, {
+    idle: "Idle",
+    walk: "Walk",
+    run: "Run",
+    jump: "Jump",
+    fall: "Jump_Idle",
+    die: "Death",
+    wave: "Wave",
+  })
+  hero.Parent = StarterPlayer
 
   const block = (size: Vector3, at: Vector3, color: Color3, material = Enum.Material.SmoothPlastic) => {
     const p = new Instance("Part")
@@ -170,8 +237,21 @@ export const place: EnginePlace = ({ Workspace, Lighting, Players, ReplicatedSto
     p.Parent = Workspace
     return p
   }
+  const scenery = (name: string, meshId: string, size: Vector3, cf: CFrame) => {
+    const m = new Instance("MeshPart")
+    m.Name = name
+    m.MeshId = meshId
+    m.Anchored = true
+    m.CanCollide = false
+    m.CanTouch = false
+    m.CanQuery = false
+    m.Size = size
+    m.CFrame = cf
+    m.Parent = Workspace
+    return m
+  }
   const lava = (size: Vector3, at: Vector3) => {
-    const p = block(size, at, Color3.fromRGB(255, 70, 30), Enum.Material.Neon)
+    const p = block(size, at, Color3.fromRGB(255, 76, 32), Enum.Material.Neon)
     p.Name = "Lava"
     p.Touched.Connect((hit) => {
       const humanoid = hit.Parent?.FindFirstChildOfClass("Humanoid")
@@ -179,6 +259,13 @@ export const place: EnginePlace = ({ Workspace, Lighting, Players, ReplicatedSto
     })
     return p
   }
+
+  const checkpointChime = new Instance("Sound", Workspace)
+  checkpointChime.Name = "CheckpointSound"
+  checkpointChime.SoundId = CHECKPOINT_SOUND_URL
+  const finishFanfare = new Instance("Sound", Workspace)
+  finishFanfare.Name = "FinishSound"
+  finishFanfare.SoundId = FINISH_SOUND_URL
 
   // Stages, each ending in a checkpoint. A player's stage is kept, and they come back at their checkpoint.
   const saves = DataStoreService.GetDataStore("Stage")
@@ -188,44 +275,74 @@ export const place: EnginePlace = ({ Workspace, Lighting, Players, ReplicatedSto
     c.Name = `Stage${stage}`
     c.Size = new Vector3(10, 1, 10)
     c.Position = at
-    c.Color = Color3.fromRGB(80, 200, 120)
+    c.Color = Color3.fromRGB(76, 198, 118)
+    c.Material = Enum.Material.Grass
     c.SetAttribute("Stage", stage)
     // Only the start is where new players appear; the others are where each player comes back.
     c.Enabled = stage === 0
     c.Parent = Workspace
     checkpoints[stage] = c
+    scenery(`Island${stage}`, CLIFF_URL, new Vector3(14, 11, 14), new CFrame(at.X, at.Y - 6, at.Z))
+    scenery(`Flag${stage}`, STAGE_FLAG_URL, new Vector3(2.2, 5.5, 2.2), new CFrame(at.X + 3.8, at.Y + 3.2, at.Z - 3.8))
     c.Touched.Connect((hit) => {
+      const humanoid = hit.Parent?.FindFirstChildOfClass("Humanoid")
+      if (!humanoid || humanoid.Health <= 0) return
       const player = Players.GetPlayerFromCharacter(hit.Parent)
       const reached = player?.FindFirstChild("leaderstats")?.FindFirstChild("Stage") as IntValue | undefined
       if (!player || !reached || reached.Value >= stage) return
       reached.Value = stage
       player.RespawnLocation = c
+      checkpointChime.Play()
       void saves.SetAsync(String(player.UserId), stage)
     })
   }
   checkpoint(0, new Vector3(0, 20, 0))
-  // Stage 1: jumps over a gap.
-  for (let i = 0; i < 4; i++) block(new Vector3(6, 1, 6), new Vector3(0, 20, -12 - i * 11), Color3.fromRGB(240, 240, 250))
+  // Stage 1: stone stepping pads over the sky gap.
+  for (let i = 0; i < 4; i++) {
+    const z = -12 - i * 11
+    block(new Vector3(6, 1, 6), new Vector3(0, 20, z), Color3.fromRGB(224, 218, 206), Enum.Material.Cobblestone)
+    scenery("StepRock", CLIFF_URL, new Vector3(7.5, 6, 7.5), new CFrame(0, 16.5, z))
+  }
   checkpoint(1, new Vector3(0, 20, -60))
-  // Stage 2: a lava floor with stepping stones.
+  // Stage 2: a molten lava channel with slate stepping stones.
   lava(new Vector3(10, 1, 30), new Vector3(0, 19.5, -80))
-  for (let i = 0; i < 3; i++) block(new Vector3(3, 1, 3), new Vector3(i % 2 === 0 ? -2.5 : 2.5, 21, -70 - i * 8), Color3.fromRGB(240, 240, 250))
+  block(new Vector3(12, 2, 32), new Vector3(0, 18.2, -80), Color3.fromRGB(76, 72, 78), Enum.Material.Basalt)
+  for (let i = 0; i < 3; i++) {
+    block(new Vector3(3.4, 1, 3.4), new Vector3(i % 2 === 0 ? -2.5 : 2.5, 21, -70 - i * 8), Color3.fromRGB(196, 192, 184), Enum.Material.Slate)
+  }
   checkpoint(2, new Vector3(0, 20, -100))
-  // Stage 3: a moving platform across a big gap, and a spinner beyond it.
-  const mover = block(new Vector3(8, 1, 8), new Vector3(0, 20, -115), Color3.fromRGB(90, 140, 255))
+  // Stage 3: a moving timber raft across a wide chasm, and a spinning saw beam beyond it.
+  const mover = block(new Vector3(8, 1, 8), new Vector3(0, 20, -115), Color3.fromRGB(186, 134, 82), Enum.Material.WoodPlanks)
   TweenService.Create(mover, new TweenInfo(3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { CFrame: new CFrame(0, 20, -145) }).Play()
-  block(new Vector3(12, 1, 12), new Vector3(0, 20, -160), Color3.fromRGB(240, 240, 250))
-  const spinner = block(new Vector3(22, 1, 1.5), new Vector3(0, 21.5, -160), Color3.fromRGB(255, 120, 40))
+  block(new Vector3(12, 1, 12), new Vector3(0, 20, -160), Color3.fromRGB(214, 208, 198), Enum.Material.Cobblestone)
+  scenery("SawIsland", CLIFF_URL, new Vector3(16, 12, 16), new CFrame(0, 13.5, -160))
+  const spinner = block(new Vector3(22, 1, 1.5), new Vector3(0, 21.5, -160), Color3.fromRGB(235, 110, 42), Enum.Material.Metal)
   spinner.Name = "Spinner"
-  RunService.Heartbeat.Connect((dt) => (spinner.CFrame = spinner.CFrame.mul(CFrame.Angles(0, dt * 1.6, 0))))
+  const saw = scenery("SawBlade", SAW_URL, new Vector3(5.5, 5.5, 1.4), new CFrame(0, 22.2, -160))
+  RunService.Heartbeat.Connect((dt) => {
+    spinner.CFrame = spinner.CFrame.mul(CFrame.Angles(0, dt * 1.6, 0))
+    saw.CFrame = spinner.CFrame.mul(CFrame.Angles(0, 0, Workspace.DistributedGameTime * 5))
+  })
   spinner.Touched.Connect((hit) => {
     const root = hit.Parent?.FindFirstChild("HumanoidRootPart") as BasePart | undefined
     if (root && hit.Parent?.FindFirstChildOfClass("Humanoid")) root.AssemblyLinearVelocity = new Vector3(0, 40, 30)
   })
   checkpoint(3, new Vector3(0, 20, -175))
-  // The finish.
+  // The finish island, goal banner, and treasure chest.
   const finish = block(new Vector3(14, 1, 14), new Vector3(0, 20, -195), Color3.fromRGB(255, 215, 60), Enum.Material.Neon)
   finish.Name = "Finish"
+  scenery("FinishIsland", CLIFF_URL, new Vector3(20, 14, 20), new CFrame(0, 12.5, -195))
+  scenery("GoalFlag", GOAL_FLAG_URL, new Vector3(3.5, 9, 3.5), new CFrame(-5, 25, -200))
+  scenery("GoalChest", CHEST_URL, new Vector3(3.6, 3.2, 3.2), new CFrame(4.8, 22.1, -200))
+
+  // Decorative floating side islands with broadleaf trees and clouds framing the sky course.
+  for (const [x, y, z] of [[-24, 18, -22], [26, 22, -78], [-28, 19, -135], [24, 23, -182]] as const) {
+    scenery("SideIsle", CLIFF_URL, new Vector3(14, 11, 14), new CFrame(x, y - 5.5, z))
+    scenery("SideTree", TREE_URL, new Vector3(10, 15.5, 10), new CFrame(x, y + 7.5, z))
+  }
+  for (const [x, y, z] of [[-32, 34, -10], [30, 38, -50], [-26, 36, -105], [34, 35, -155], [-18, 40, -210]] as const) {
+    scenery("SkyCloud", CLOUD_URL, new Vector3(15, 9.5, 11), new CFrame(x, y, z))
+  }
 
   // Times: from when a player's character spawns to the finish, which counts once they've reached the last
   // checkpoint. Best times go in an ordered DataStore (a leaderboard can list them with GetSortedAsync).
@@ -249,12 +366,15 @@ export const place: EnginePlace = ({ Workspace, Lighting, Players, ReplicatedSto
   })
   Players.PlayerRemoving.Connect((player) => started.delete(player))
   finish.Touched.Connect(async (hit) => {
+    const humanoid = hit.Parent?.FindFirstChildOfClass("Humanoid")
+    if (!humanoid || humanoid.Health <= 0) return
     const player = Players.GetPlayerFromCharacter(hit.Parent)
     const from = player ? started.get(player) : undefined
     const reached = player?.FindFirstChild("leaderstats")?.FindFirstChild("Stage") as IntValue | undefined
     if (!player || from === undefined || !reached || reached.Value < checkpoints.length - 1) return
     // Each part of the character touches it: the first counts, and the next run starts when they spawn again.
     started.delete(player)
+    finishFanfare.Play()
     const seconds = Math.round(Workspace.DistributedGameTime - from)
     const key = String(player.UserId)
     const previous = (await best.GetAsync(key)) as number | undefined
@@ -272,7 +392,7 @@ export const place: EnginePlace = ({ Workspace, Lighting, Players, ReplicatedSto
     l.Size = UDim2.fromOffset(260, 40)
     l.Position = UDim2.fromOffset(16, y)
     l.BackgroundColor3 = Color3.fromRGB(20, 24, 36)
-    l.BackgroundTransparency = 0.3
+    l.BackgroundTransparency = 0.25
     l.BorderSizePixel = 0
     l.TextColor3 = Color3.fromRGB(255, 255, 255)
     l.Font = Enum.Font.GothamBold
@@ -351,11 +471,12 @@ describe("the obby", () => {
 ### `server/rooms/game_room.ts`
 
 ```ts
-import { engineRoom } from "../framework/index"
-import { place } from "../game/place"
+import { engineRoom, type GameShellConfig } from "../framework/index"
+import * as gamePlace from "../game/place"
 
 // The game's server: a room runs the place, and each player who opens the page joins it.
-sdk.registerRoom("game", engineRoom(place, { maxPlayers: 16 }))
+const { place, shell } = gamePlace as typeof gamePlace & { shell?: GameShellConfig }
+sdk.registerRoom("game", engineRoom(place, { maxPlayers: 16, shell }))
 ```
 
 ### `sitemills.json`
@@ -628,42 +749,52 @@ createRoot(document.getElementById("root")!).render(
 ```tsx
 import { useEffect, useRef, useState } from "react"
 import RAPIER from "@dimforge/rapier3d-compat"
-import { joinRoom } from "@/api/room-client"
-import { playOnline, playSolo } from "@/framework/index"
+import { createRoom, joinRoom, joinRoomByCode, listRooms } from "@/api/room-client"
+import { mountGameShell, type GameShellConfig } from "@/framework/index"
 import { client } from "../../server/game/client"
-import { place } from "../../server/game/place"
+import * as gamePlace from "../../server/game/place"
 
 /**
- * The game. Everyone who opens the page plays together in a room (server/rooms/game_room.ts runs the place there);
- * with ?solo in the address, it plays alone in the page. With ?debug, window.__game is the game's view (its engine,
- * localPlayer and, alone, the server's engine) for checking it from the browser console or a test.
+ * The game page: opens on the game shell overlay (title screen, modes, server browser, private room codes, how to play,
+ * and graphics/audio settings) backed by a live 3D preview. With `?solo` it plays alone in the page; with `?code=...`,
+ * `?room=...`, or `?autojoin` it enters a room immediately. With `?debug`, `window.__game` exposes the active game view.
  */
 export function GamePage() {
+  const container = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
   const [problem, setProblem] = useState<string | null>(null)
   useEffect(() => {
-    let stop: (() => void) | null = null
+    let dispose: (() => void) | null = null
     let gone = false
     void (async () => {
       await RAPIER.init()
-      if (gone || !canvas.current) return
-      const solo = new URLSearchParams(window.location.search).has("solo")
-      const game = solo
-        ? await playSolo({ canvas: canvas.current, physics: RAPIER, place, client })
-        : await playOnline({ canvas: canvas.current, physics: RAPIER, client, room: await joinRoom("game", { roomId: "auto" }) })
-      if (gone) game.stop()
-      else stop = () => game.stop()
-      if (new URLSearchParams(window.location.search).has("debug")) (window as unknown as { __game: unknown }).__game = game
+      if (gone || !canvas.current || !container.current) return
+      const shellConfig = (gamePlace as { shell?: GameShellConfig }).shell
+      const shell = await mountGameShell({
+        canvas: canvas.current,
+        container: container.current,
+        physics: RAPIER,
+        place: gamePlace.place,
+        client,
+        shell: shellConfig,
+        rooms: { joinRoom, listRooms, createRoom, joinRoomByCode },
+        onError: (msg) => setProblem(msg),
+        onGameChange: (g) => {
+          if (g) setProblem(null)
+        },
+      })
+      if (gone) shell.dispose()
+      else dispose = () => shell.dispose()
     })().catch((error: unknown) => setProblem(error instanceof Error ? error.message : String(error)))
     return () => {
       gone = true
-      stop?.()
+      dispose?.()
     }
   }, [])
   return (
-    <div className="relative h-svh w-full select-none overflow-hidden bg-black">
+    <div ref={container} className="relative h-svh w-full select-none overflow-hidden bg-black">
       <canvas ref={canvas} className="block h-full w-full" />
-      {problem && <div className="absolute inset-x-0 top-4 mx-auto w-fit max-w-[90%] rounded-lg bg-red-600 px-4 py-2 text-sm text-white">{problem}</div>}
+      {problem && <div className="absolute inset-x-0 top-4 z-30 mx-auto w-fit max-w-[90%] rounded-lg bg-red-600 px-4 py-2 text-sm text-white">{problem}</div>}
     </div>
   )
 }

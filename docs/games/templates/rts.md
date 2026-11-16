@@ -315,16 +315,16 @@ export const client: ClientScript = ({ player, Workspace, ReplicatedStorage, Sta
 ### `server/game/place.ts`
 
 ```ts
-// Strategy: a map seen from above, and no avatar. Each player who joins gets a town hall and three workers in a corner
-// of the map. Workers sent to a gold mine gather from it and carry the gold home; the town hall trains more workers.
+// Strategy: a map seen from above, and no avatar. Each player who joins gets a stone keep and three workers in a corner
+// of the map. Workers sent to a gold mine gather from it and carry the gold home; the keep trains more workers.
 // - Players.CharacterAutoLoads is false, so players have no character. The client script flies a Scriptable camera
 //   over the map, selects units (a click, or a box dragged around them) and sends orders through the Command remote.
 // - Units are NPCs the server moves (Humanoid.MoveTo, around rocks with PathfindingService). They're in the "Units"
 //   collision group, which doesn't collide with itself, so a crowd of them passes through itself instead of jamming.
 // - The server checks every order: a player orders only their own units.
-// - Fighting: the town hall also trains soldiers. Sent at an enemy (a unit or a building), they walk there and strike
-//   it; left alone, they strike any enemy that comes in sight. Raiders hold a camp in the middle of the map and send
-//   raids at the town halls. A town hall that falls is a defeat for its player; the camp falling is a victory.
+// - Fighting: the keep also trains soldiers. Sent at an enemy (a unit or a building), they walk there and strike
+//   it; left alone, they strike any enemy that comes in sight. Raiders hold a stronghold in the middle of the map and
+//   send raids at the keeps. A keep that falls is a defeat for its player; the stronghold falling is a victory.
 import {
   CFrame,
   Color3,
@@ -339,11 +339,43 @@ import {
   type BasePart,
   type EnginePlace,
   type Frame,
+  type GameShellConfig,
   type Humanoid,
   type IntValue,
   type Model,
   type Player,
 } from "../framework/index"
+
+const KEEP_TOWER_URL = "https://game-assets.sitemills.com/library/kenney/castle-kit/a2095edf1a6e/Models/GLB-format/tower-square-base.glb"
+const KEEP_ROOF_URL = "https://game-assets.sitemills.com/library/kenney/castle-kit/a2095edf1a6e/Models/GLB-format/tower-square-roof.glb"
+const KEEP_FLAG_URL = "https://game-assets.sitemills.com/library/kenney/castle-kit/a2095edf1a6e/Models/GLB-format/flag-wide.glb"
+const RAIDER_BASTION_URL = "https://game-assets.sitemills.com/library/kenney/castle-kit/a2095edf1a6e/Models/GLB-format/tower-hexagon-base.glb"
+const RAIDER_ROOF_URL = "https://game-assets.sitemills.com/library/kenney/castle-kit/a2095edf1a6e/Models/GLB-format/tower-hexagon-roof.glb"
+const TENT_URL = "https://game-assets.sitemills.com/library/kenney/survival-kit/816597879919/Models/GLB-format/tent.glb"
+const PINE_URL = "https://game-assets.sitemills.com/library/kenney/survival-kit/816597879919/Models/GLB-format/tree.glb"
+const TALL_PINE_URL = "https://game-assets.sitemills.com/library/kenney/survival-kit/816597879919/Models/GLB-format/tree-tall.glb"
+const BOULDER_URL = "https://game-assets.sitemills.com/library/kenney/survival-kit/816597879919/Models/GLB-format/rock-b.glb"
+const CRYSTAL_URL = "https://game-assets.sitemills.com/library/kenney/tower-defense-kit/827cb54919b7/Models/GLB-format/detail-crystal-large.glb"
+const SWORD_URL = "https://game-assets.sitemills.com/library/kaykit/adventurers/49ac36d947cc/Assets/gltf/sword_1handed.glb"
+const AXE_URL = "https://game-assets.sitemills.com/library/kaykit/adventurers/49ac36d947cc/Assets/gltf/axe_2handed.glb"
+
+export const shell: GameShellConfig = {
+  title: "Border Keep",
+  subtitle: "Harvest gleaming crystal veins, muster a garrison of soldiers, and storm the central Raider stronghold.",
+  modes: [
+    {
+      id: "skirmish",
+      name: "Border Skirmish",
+      description: "1–4 commanders build corner keeps and crush the central Raider camp.",
+      minPlayers: 1,
+      maxPlayers: 4,
+    },
+  ],
+  howToPlay: [
+    "Click or drag a box to select Workers and Soldiers; WASD, mouse wheel, or drag pans the tactical camera.",
+    "Right-click a Gold Mine with Workers to gather gold, train units on the left, and right-click the Raider Camp with Soldiers to win.",
+  ],
+}
 
 const START_GOLD = 50
 const GOLD_PER_TRIP = 10
@@ -369,8 +401,20 @@ const COLOURS = [Color3.fromRGB(60, 120, 230), Color3.fromRGB(220, 60, 60), Colo
 /** Where each player's town hall goes (a corner each), and its gold mine (toward the middle). */
 const BASES = [new Vector3(-140, 0, -140), new Vector3(140, 0, 140), new Vector3(140, 0, -140), new Vector3(-140, 0, 140)]
 
-export const place: EnginePlace = ({ Workspace, Players, ReplicatedStorage, StarterGui, PhysicsService, PathfindingService, CollectionService, Lighting, Debris, task }) => {
-  Lighting.ClockTime = 14
+export const place: EnginePlace = ({
+  Workspace,
+  Players,
+  ReplicatedStorage,
+  StarterGui,
+  PhysicsService,
+  PathfindingService,
+  CollectionService,
+  Lighting,
+  Debris,
+  task,
+}) => {
+  Lighting.ClockTime = 14.5
+  new Instance("Sky", Lighting)
   Players.CharacterAutoLoads = false
   PhysicsService.RegisterCollisionGroup("Units")
   PhysicsService.CollisionGroupSetCollidable("Units", "Units", false)
@@ -386,32 +430,58 @@ export const place: EnginePlace = ({ Workspace, Players, ReplicatedStorage, Star
     p.Parent = parent
     return p
   }
+  const meshDeco = (name: string, meshId: string, size: Vector3, cf: CFrame, parent: Instance, collide = false) => {
+    const m = new Instance("MeshPart")
+    m.Name = name
+    m.MeshId = meshId
+    m.Anchored = true
+    m.CanCollide = collide
+    if (!collide) {
+      m.CanTouch = false
+      m.CanQuery = false
+    }
+    m.Size = size
+    m.CFrame = cf
+    m.Parent = parent
+    return m
+  }
 
-  // The map: grass, rocks in the way, and a gold mine near each base.
-  part("Ground", new Vector3(400, 2, 400), new Vector3(0, -1, 0), Color3.fromRGB(104, 150, 76), Workspace, Enum.Material.Grass)
+  // The map: grass, rocky outcrops, pine groves, and a gleaming gold-crystal mine near each corner keep.
+  part("Ground", new Vector3(400, 2, 400), new Vector3(0, -1, 0), Color3.fromRGB(98, 146, 74), Workspace, Enum.Material.Grass)
   for (let i = 0; i < 18; i++) {
     const angle = i * 2.4
     const r = 40 + (i % 6) * 22
     const size = 6 + (i % 3) * 4
-    part("Rock", new Vector3(size, size * 0.7, size), new Vector3(Math.cos(angle) * r, size * 0.35, Math.sin(angle) * r), Color3.fromRGB(120, 116, 110), Workspace, Enum.Material.Slate)
+    meshDeco(
+      "Rock",
+      BOULDER_URL,
+      new Vector3(size, size * 0.65, size),
+      new CFrame(Math.cos(angle) * r, size * 0.32, Math.sin(angle) * r).mul(CFrame.Angles(0, i * 0.9, 0)),
+      Workspace,
+      true,
+    )
   }
-  // Trees in clumps (in the way, as the rocks are): a trunk and a crown each.
   for (let clump = 0; clump < 8; clump++) {
     const angle = clump * 0.785 + 0.4
     const centre = new Vector3(Math.cos(angle) * 120, 0, Math.sin(angle) * 120)
     for (let i = 0; i < 6; i++) {
       const at = centre.add(new Vector3(Math.cos(i * 2.1) * (4 + i * 2), 0, Math.sin(i * 2.1) * (4 + i * 2)))
-      const tree = new Instance("Model")
-      tree.Name = "Tree"
-      part("Trunk", new Vector3(1.6, 8, 1.6), new Vector3(at.X, 4, at.Z), Color3.fromRGB(110, 80, 50), tree, Enum.Material.Wood)
-      const crown = part("Crown", new Vector3(8, 8, 8), new Vector3(at.X, 10, at.Z), Color3.fromRGB(56, 120, 60), tree, Enum.Material.Grass)
-      crown.Shape = Enum.PartType.Ball
-      tree.Parent = Workspace
+      const tall = i % 2 === 0
+      const h = tall ? 18 : 15
+      meshDeco(
+        "Tree",
+        tall ? TALL_PINE_URL : PINE_URL,
+        new Vector3(5.6, h, 5.6),
+        new CFrame(at.X, h / 2, at.Z).mul(CFrame.Angles(0, i * 1.3, 0)),
+        Workspace,
+        true,
+      )
     }
   }
   const mines = BASES.map((base) => {
     const at = base.mul(0.62)
-    const mine = part("GoldMine", new Vector3(10, 6, 10), new Vector3(at.X, 3, at.Z), Color3.fromRGB(240, 190, 40), Workspace, Enum.Material.Neon)
+    const mine = part("GoldMine", new Vector3(10, 6, 10), new Vector3(at.X, 3, at.Z), Color3.fromRGB(220, 175, 48), Workspace, Enum.Material.Slate)
+    meshDeco("GoldVein", CRYSTAL_URL, new Vector3(8.5, 6.2, 8.5), new CFrame(at.X, 5.2, at.Z), mine, false)
     CollectionService.AddTag(mine, "GoldMine")
     return mine
   })
@@ -422,15 +492,12 @@ export const place: EnginePlace = ({ Workspace, Players, ReplicatedStorage, Star
 
   // Fighting -----------------------------------------------------------------------------------------------------------
 
-  /** The units that fight, what each was sent at, those walking where they were sent (they don't pick fights on the
-   *  way), and those on a long walk to what they were sent at. */
   const fighters = new Set<Model>()
   const aims = new Map<Model, Model>()
   const marching = new Set<Model>()
   const trekking = new Set<Model>()
   const struck = new Map<Model, number>()
   const swings = new Map<Model, AnimationTrack>()
-  /** Town halls and the raiders' camp: each has Health and MaxHealth attributes, and a bar over it. */
   const buildings = new Set<Model>()
   const withHealth = (building: Model, health: number) => {
     building.SetAttribute("Health", health)
@@ -438,7 +505,7 @@ export const place: EnginePlace = ({ Workspace, Players, ReplicatedStorage, Star
     const bar = new Instance("BillboardGui", building.FindFirstChild("Base"))
     bar.Name = "HealthBar"
     bar.Size = UDim2.fromOffset(120, 12)
-    bar.StudsOffset = new Vector3(0, 12, 0)
+    bar.StudsOffset = new Vector3(0, 14, 0)
     const back = new Instance("Frame", bar)
     back.Size = UDim2.fromScale(1, 1)
     back.BackgroundColor3 = Color3.fromRGB(30, 30, 36)
@@ -453,13 +520,11 @@ export const place: EnginePlace = ({ Workspace, Players, ReplicatedStorage, Star
   const isBuilding = (thing: Model) => buildings.has(thing)
   const alive = (thing: Model) => !!thing.Parent && (isBuilding(thing) ? (thing.GetAttribute("Health") as number) > 0 : (thing.FindFirstChildOfClass("Humanoid")?.Health ?? 0) > 0)
   const placeOf = (thing: Model) => (isBuilding(thing) ? thing.GetPivot().Position : ((thing.FindFirstChild("HumanoidRootPart") as BasePart | undefined)?.Position ?? thing.GetPivot().Position))
-  /** How far a building reaches from its middle (a unit: not at all). */
   const girth = (thing: Model) => {
     if (!isBuilding(thing)) return 0
     const size = thing.GetExtentsSize()
     return Math.hypot(size.X, size.Z) / 2
   }
-  /** The ground between a point and the nearest of a thing. */
   const gapTo = (from: Vector3, thing: Model) => {
     const at = placeOf(thing)
     return Math.hypot(at.X - from.X, at.Z - from.Z) - girth(thing)
@@ -467,11 +532,9 @@ export const place: EnginePlace = ({ Workspace, Players, ReplicatedStorage, Star
   const slash = new Instance("Animation")
   slash.AnimationId = "toolslash"
 
-  /** A building at no health falls: a town hall is its player's defeat; the camp is everyone's victory, and its raiders fall with it. */
   let campDown = false
   const fall = (building: Model) => {
     const owner = building.GetAttribute("Owner") as number
-    // It goes up in a blast (for show: it hurts nothing).
     const blast = new Instance("Explosion")
     blast.Position = building.GetPivot().Position
     blast.BlastRadius = 16
@@ -506,7 +569,7 @@ export const place: EnginePlace = ({ Workspace, Players, ReplicatedStorage, Star
     if (left === 0) fall(target)
   }
 
-  // Each player's corner, town hall, units and stats.
+  // Each player's corner, keep, units and stats.
   const slots = new Map<Player, number>()
   const halls = new Map<Player, Model>()
   const stat = (player: Player, name: string) => player.FindFirstChild("leaderstats")?.FindFirstChild(name) as IntValue | undefined
@@ -520,8 +583,11 @@ export const place: EnginePlace = ({ Workspace, Players, ReplicatedStorage, Star
     const hall = new Instance("Model")
     hall.Name = "TownHall"
     const at = BASES[slot]
-    part("Base", new Vector3(18, 8, 18), new Vector3(at.X, 4, at.Z), Color3.fromRGB(200, 180, 150), hall, Enum.Material.Brick)
-    part("Roof", new Vector3(20, 3, 20), new Vector3(at.X, 9.5, at.Z), COLOURS[slot], hall, Enum.Material.WoodPlanks)
+    part("Base", new Vector3(18, 8, 18), new Vector3(at.X, 4, at.Z), Color3.fromRGB(186, 176, 160), hall, Enum.Material.Cobblestone)
+    part("Roof", new Vector3(20, 2, 20), new Vector3(at.X, 9, at.Z), COLOURS[slot], hall, Enum.Material.WoodPlanks)
+    meshDeco("KeepTower", KEEP_TOWER_URL, new Vector3(12, 11, 12), new CFrame(at.X, 14.5, at.Z), hall, false)
+    meshDeco("KeepRoof", KEEP_ROOF_URL, new Vector3(12, 14, 12), new CFrame(at.X, 24, at.Z), hall, false)
+    meshDeco("KeepFlag", KEEP_FLAG_URL, new Vector3(1.1, 7.5, 4.8), new CFrame(at.X + 7, 13.5, at.Z), hall, false)
     hall.SetAttribute("Owner", player.UserId)
     CollectionService.AddTag(hall, "TownHall")
     withHealth(hall, HALL_HEALTH)
@@ -529,24 +595,22 @@ export const place: EnginePlace = ({ Workspace, Players, ReplicatedStorage, Star
     return hall
   }
 
-  /** A unit of a kind for an owner (a player's UserId, or the raiders), in the owner's colour. Fighters carry a blade. */
+  /** A unit of a kind for an owner (a player's UserId, or the raiders), in the owner's colour. Fighters carry a 3D blade. */
   const makeUnit = (kind: Kind, owner: number, colour: Color3, at: Vector3) => {
     const unit = defaultCharacter(kind)
     if (kind !== "Worker") {
-      // In its right hand, joined to the arm (so it swings with it).
       const arm = unit.FindFirstChild("Right Arm") as BasePart
-      const blade = new Instance("Part")
+      const blade = new Instance("MeshPart")
       blade.Name = "Blade"
-      blade.Size = new Vector3(0.3, 0.3, 3)
-      blade.Color = kind === "Soldier" ? Color3.fromRGB(210, 215, 225) : Color3.fromRGB(70, 60, 60)
-      blade.Material = Enum.Material.Metal
+      blade.MeshId = kind === "Soldier" ? SWORD_URL : AXE_URL
+      blade.Size = kind === "Soldier" ? new Vector3(0.8, 3.2, 0.4) : new Vector3(1.8, 3.2, 0.5)
       blade.CanCollide = false
       blade.Massless = true
-      blade.CFrame = arm.CFrame.mul(new CFrame(0, -0.9, -1.3))
       blade.Parent = arm
-      const hold = new Instance("WeldConstraint")
+      const hold = new Instance("Weld")
       hold.Part0 = arm
       hold.Part1 = blade
+      hold.C0 = new CFrame(0, -1, -1.1).mul(CFrame.Angles(-Math.PI / 2, 0, 0))
       hold.Parent = arm
     }
     for (const d of unit.GetDescendants()) {
@@ -554,7 +618,6 @@ export const place: EnginePlace = ({ Workspace, Players, ReplicatedStorage, Star
       const p = d as BasePart
       p.CollisionGroup = "Units"
       if (p.Name === "Torso") p.Color = colour
-      // Only drawn: the root's shape is what collides and what a click hits, so the rest costs no collider.
       if (p.Name !== "HumanoidRootPart") {
         p.CanTouch = false
         p.CanQuery = false
@@ -568,9 +631,7 @@ export const place: EnginePlace = ({ Workspace, Players, ReplicatedStorage, Star
     humanoid.MaxHealth = KINDS[kind].health
     humanoid.Health = KINDS[kind].health
     humanoid.WalkSpeed = KINDS[kind].speed
-    // Many units close together: no name tags over them.
     humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-    // It falls where it dies, and is cleared away.
     humanoid.Died.Connect(() => {
       Debris.AddItem(unit, 2)
       const player = Players.GetPlayerByUserId(owner)
@@ -584,7 +645,6 @@ export const place: EnginePlace = ({ Workspace, Players, ReplicatedStorage, Star
   }
   const makeWorker = (player: Player, at: Vector3) => makeUnit("Worker", player.UserId, COLOURS[slots.get(player) as number], at)
 
-  // What each unit is doing: a new order replaces its job, and the old one stops at its next step.
   const jobs = new Map<Model, number>()
   let nextJob = 0
   const startJob = (unit: Model) => {
@@ -593,8 +653,6 @@ export const place: EnginePlace = ({ Workspace, Players, ReplicatedStorage, Star
     return () => jobs.get(unit) === job && !!unit.Parent
   }
 
-  /** Walks a unit to a point, around rocks, until it's there (within 4 studs) or the job's over. A MoveTo that hasn't
-   *  got there in 8 seconds (stuck) gives up, as in Roblox. */
   const walkTo = async (unit: Model, goal: Vector3, current: () => boolean) => {
     const humanoid = unit.FindFirstChildOfClass("Humanoid") as Humanoid
     const root = unit.FindFirstChild("HumanoidRootPart") as BasePart
@@ -616,13 +674,11 @@ export const place: EnginePlace = ({ Workspace, Players, ReplicatedStorage, Star
     return current() && Math.hypot(left.X, left.Z) < 4
   }
 
-  /** Where a unit stands to reach a building: outside its footprint, on the side toward `from`. */
   const beside = (centre: Vector3, size: Vector3, from: Vector3) => {
     const toward = new Vector3(from.X - centre.X, 0, from.Z - centre.Z).Unit
     return new Vector3(centre.X, 0, centre.Z).add(toward.mul(Math.hypot(size.X, size.Z) / 2 + 3))
   }
 
-  /** A worker's trips: to the mine, a second's digging, home with the gold, and again, until it's given another order. */
   const gather = async (player: Player, unit: Model, mine: BasePart) => {
     const current = startJob(unit)
     const hall = halls.get(player)
@@ -639,7 +695,6 @@ export const place: EnginePlace = ({ Workspace, Players, ReplicatedStorage, Star
     }
   }
 
-  /** A long walk to what a fighter was sent at (round the rocks). Once it's in sight, the fight below takes over. */
   const trek = async (unit: Model, target: Model) => {
     if (trekking.has(unit)) return
     trekking.add(unit)
@@ -650,7 +705,6 @@ export const place: EnginePlace = ({ Workspace, Players, ReplicatedStorage, Star
     trekking.delete(unit)
   }
 
-  /** The fight, a few times a second: each fighter picks who to strike, walks up, and strikes. */
   const fight = async () => {
     for (;;) {
       await task.wait(0.4)
@@ -683,8 +737,6 @@ export const place: EnginePlace = ({ Workspace, Players, ReplicatedStorage, Star
           }
           return found
         }
-        // Whoever is on it comes first; then what it was sent at; then, unless it's walking where it was sent, the
-        // nearest enemy in sight.
         let target = nearest(REACH + 4, false)
         if (!target) {
           const aim = aims.get(unit)
@@ -698,7 +750,6 @@ export const place: EnginePlace = ({ Workspace, Players, ReplicatedStorage, Star
           void trek(unit, target)
           continue
         }
-        // Near enough to see it: straight at it, and whatever walk it was on is over.
         jobs.set(unit, ++nextJob)
         if (gap > REACH) {
           humanoid.MoveTo(placeOf(target))
@@ -719,11 +770,14 @@ export const place: EnginePlace = ({ Workspace, Players, ReplicatedStorage, Star
   }
   void fight()
 
-  // The raiders: a camp in the middle of the map with two guards, and raids at the town halls, bigger each time.
+  // The raiders: a hexagonal stone bastion in the middle of the map with two guards, and raids at the keeps.
   const camp = new Instance("Model")
   camp.Name = "RaiderCamp"
-  part("Base", new Vector3(16, 7, 16), new Vector3(0, 3.5, 0), Color3.fromRGB(70, 60, 60), camp, Enum.Material.Slate)
-  part("Roof", new Vector3(18, 2, 18), new Vector3(0, 8, 0), Color3.fromRGB(170, 40, 40), camp, Enum.Material.Fabric)
+  part("Base", new Vector3(16, 7, 16), new Vector3(0, 3.5, 0), Color3.fromRGB(78, 68, 68), camp, Enum.Material.Slate)
+  part("Roof", new Vector3(18, 2, 18), new Vector3(0, 8, 0), Color3.fromRGB(165, 42, 42), camp, Enum.Material.Fabric)
+  meshDeco("Bastion", RAIDER_BASTION_URL, new Vector3(11, 13, 10), new CFrame(0, 14.5, 0), camp, false)
+  meshDeco("BastionRoof", RAIDER_ROOF_URL, new Vector3(12, 9, 11), new CFrame(0, 23, 0), camp, false)
+  meshDeco("RaiderTent", TENT_URL, new Vector3(5.5, 4.8, 5.5), new CFrame(-4.5, 11.4, 4.5), camp, false)
   camp.SetAttribute("Owner", RAIDERS)
   CollectionService.AddTag(camp, "RaiderCamp")
   withHealth(camp, CAMP_HEALTH)
@@ -736,7 +790,6 @@ export const place: EnginePlace = ({ Workspace, Players, ReplicatedStorage, Star
     for (let n = 0; !campDown; n++) {
       for (let i = 0; i < Math.min(8, 2 + n); i++) {
         const raider = makeUnit("Raider", RAIDERS, raiderColour, raiderAt(i))
-        // At the town hall nearest the camp that's still standing.
         let hall: Model | undefined
         for (const h of halls.values()) if (alive(h) && (!hall || gapTo(raiderAt(i), h) < gapTo(raiderAt(i), hall))) hall = h
         if (!hall) continue
@@ -756,7 +809,6 @@ export const place: EnginePlace = ({ Workspace, Players, ReplicatedStorage, Star
     gold.Value = START_GOLD
     new Instance("IntValue", stats).Name = "Units"
     stats.Parent = player
-    // Up to four players get a corner; others watch.
     const taken = new Set(slots.values())
     const slot = [0, 1, 2, 3].find((s) => !taken.has(s))
     if (slot === undefined) return
@@ -792,7 +844,6 @@ export const place: EnginePlace = ({ Workspace, Players, ReplicatedStorage, Star
         if (!hall.Parent) return
         const at = hall.GetPivot().Position
         const out = at.mul(-1).Unit
-        // In front of the hall, each new one a little round from the last (a spiral, so they don't land on each other).
         const turn = unitsOf(player).length * 2.4
         const spot = at.add(out.mul(14)).add(new Vector3(Math.cos(turn) * 3, 0, Math.sin(turn) * 3))
         if (kind === "train") makeWorker(player, spot)
@@ -801,12 +852,9 @@ export const place: EnginePlace = ({ Workspace, Players, ReplicatedStorage, Star
       return
     }
     if (kind !== "move" || !Array.isArray(units) || !(target instanceof Vector3)) return
-    // Only the player's own units, and each once.
     const mine = new Set(unitsOf(player))
     const ordered = ([...new Set(units)] as Model[]).filter((u) => mine.has(u)).slice(0, MAX_UNITS)
-    // Sent to a gold mine: workers gather from it. Anywhere else: they go there in a block, 4 studs apart.
     const goldMine = mines.find((m) => m.Position.sub(new Vector3(target.X, m.Position.Y, target.Z)).Magnitude < 9)
-    // Sent at an enemy (a unit or a building, under the point): soldiers go and strike it.
     let foe: Model | undefined
     for (const thing of [...(CollectionService.GetTagged("Unit") as Model[]), ...buildings]) {
       if (thing.GetAttribute("Owner") !== player.UserId && alive(thing) && gapTo(target, thing) < 5) foe = thing
@@ -872,7 +920,6 @@ export const place: EnginePlace = ({ Workspace, Players, ReplicatedStorage, Star
   soldier.BackgroundColor3 = Color3.fromRGB(200, 70, 60)
   soldier.Text = `Train soldier (${SOLDIER_COST})`
   soldier.Parent = hud
-  // Victory or defeat, across the middle (the client script shows it).
   const result = label("Result", 0, "")
   result.AnchorPoint = new Vector2(0.5, 0.5)
   result.Position = UDim2.fromScale(0.5, 0.4)
@@ -886,7 +933,6 @@ export const place: EnginePlace = ({ Workspace, Players, ReplicatedStorage, Star
   help.TextSize = 14
   help.TextWrapped = true
   help.Font = Enum.Font.Gotham
-  // The box dragged to select (the client script shows and sizes it).
   const box = new Instance("Frame", hud)
   box.Name = "SelectBox"
   box.Visible = false
@@ -1006,11 +1052,12 @@ describe("the strategy game", () => {
 ### `server/rooms/game_room.ts`
 
 ```ts
-import { engineRoom } from "../framework/index"
-import { place } from "../game/place"
+import { engineRoom, type GameShellConfig } from "../framework/index"
+import * as gamePlace from "../game/place"
 
 // The game's server: a room runs the place, and each player who opens the page joins it.
-sdk.registerRoom("game", engineRoom(place, { maxPlayers: 16 }))
+const { place, shell } = gamePlace as typeof gamePlace & { shell?: GameShellConfig }
+sdk.registerRoom("game", engineRoom(place, { maxPlayers: 16, shell }))
 ```
 
 ### `sitemills.json`
@@ -1283,42 +1330,52 @@ createRoot(document.getElementById("root")!).render(
 ```tsx
 import { useEffect, useRef, useState } from "react"
 import RAPIER from "@dimforge/rapier3d-compat"
-import { joinRoom } from "@/api/room-client"
-import { playOnline, playSolo } from "@/framework/index"
+import { createRoom, joinRoom, joinRoomByCode, listRooms } from "@/api/room-client"
+import { mountGameShell, type GameShellConfig } from "@/framework/index"
 import { client } from "../../server/game/client"
-import { place } from "../../server/game/place"
+import * as gamePlace from "../../server/game/place"
 
 /**
- * The game. Everyone who opens the page plays together in a room (server/rooms/game_room.ts runs the place there);
- * with ?solo in the address, it plays alone in the page. With ?debug, window.__game is the game's view (its engine,
- * localPlayer and, alone, the server's engine) for checking it from the browser console or a test.
+ * The game page: opens on the game shell overlay (title screen, modes, server browser, private room codes, how to play,
+ * and graphics/audio settings) backed by a live 3D preview. With `?solo` it plays alone in the page; with `?code=...`,
+ * `?room=...`, or `?autojoin` it enters a room immediately. With `?debug`, `window.__game` exposes the active game view.
  */
 export function GamePage() {
+  const container = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
   const [problem, setProblem] = useState<string | null>(null)
   useEffect(() => {
-    let stop: (() => void) | null = null
+    let dispose: (() => void) | null = null
     let gone = false
     void (async () => {
       await RAPIER.init()
-      if (gone || !canvas.current) return
-      const solo = new URLSearchParams(window.location.search).has("solo")
-      const game = solo
-        ? await playSolo({ canvas: canvas.current, physics: RAPIER, place, client })
-        : await playOnline({ canvas: canvas.current, physics: RAPIER, client, room: await joinRoom("game", { roomId: "auto" }) })
-      if (gone) game.stop()
-      else stop = () => game.stop()
-      if (new URLSearchParams(window.location.search).has("debug")) (window as unknown as { __game: unknown }).__game = game
+      if (gone || !canvas.current || !container.current) return
+      const shellConfig = (gamePlace as { shell?: GameShellConfig }).shell
+      const shell = await mountGameShell({
+        canvas: canvas.current,
+        container: container.current,
+        physics: RAPIER,
+        place: gamePlace.place,
+        client,
+        shell: shellConfig,
+        rooms: { joinRoom, listRooms, createRoom, joinRoomByCode },
+        onError: (msg) => setProblem(msg),
+        onGameChange: (g) => {
+          if (g) setProblem(null)
+        },
+      })
+      if (gone) shell.dispose()
+      else dispose = () => shell.dispose()
     })().catch((error: unknown) => setProblem(error instanceof Error ? error.message : String(error)))
     return () => {
       gone = true
-      stop?.()
+      dispose?.()
     }
   }, [])
   return (
-    <div className="relative h-svh w-full select-none overflow-hidden bg-black">
+    <div ref={container} className="relative h-svh w-full select-none overflow-hidden bg-black">
       <canvas ref={canvas} className="block h-full w-full" />
-      {problem && <div className="absolute inset-x-0 top-4 mx-auto w-fit max-w-[90%] rounded-lg bg-red-600 px-4 py-2 text-sm text-white">{problem}</div>}
+      {problem && <div className="absolute inset-x-0 top-4 z-30 mx-auto w-fit max-w-[90%] rounded-lg bg-red-600 px-4 py-2 text-sm text-white">{problem}</div>}
     </div>
   )
 }

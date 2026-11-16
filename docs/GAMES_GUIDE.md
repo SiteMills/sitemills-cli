@@ -75,6 +75,7 @@ The engine is the platform's. Your app's `sitemills.json` names the version it u
 
 | Page | Read it for |
 |---|---|
+| `rounds-and-shell.md` | Title screen, mode picker, server browser, private room codes (`export const shell`) and server round loops (`createRoundLoop`) |
 | `tools-and-prompts.md` | A tool a player holds and clicks with (a blaster, a sword); a button to press on a part |
 | `vehicles.md` | A car, and a fast car driven from the client script |
 | `npcs.md` | NPCs that walk and find paths; crowds; collision groups |
@@ -179,7 +180,7 @@ On the engine, a library file's `url` goes straight into the instance that shows
 
 - **Use the URLs as they are.** Library files load on SiteMills sites only: your app's address, its previews and its custom domains. Don't download and re-host them: many models load their textures from the folder next to them.
 - **Keep the art matching:** search inside one pack with `--pack <pack>` (a result's `pack`).
-- **Kits** are hand-picked sets for a genre. The 3D kits list their models for React Three Fiber, but the same `url`s and `clips` work on the engine as above. `sitemills-cli game-assets kit <id>` shows one.
+- **Kits** are hand-picked sets for a genre (`sitemills-cli game-assets kits` lists them, and `sitemills-cli game-assets kit medieval-castle --write server/game/assets.ts` writes one into your game). Engine kits (`medieval-castle`, `fantasy-characters`, `sci-fi`, `track-racing`, `city`, `nature`, `tower-defense`) include `size` (`new Vector3(...asset.size)` for snug grid-aligned `MeshPart`s), character `clips` ready for `modelCharacter(name, asset.url, asset.clips)`, and combat/prop `actions` for `humanoid.LoadAnimation`.
 - **Limits:** every `game-assets` request counts toward your account's Developer API limit (currently 60 a minute), and searches have their own daily allowance (currently 500 a day). When you hit one, the CLI says how long to wait.
 - **License:** everything in the library is CC0 1.0: free to use in any project, no attribution required.
 

@@ -259,15 +259,75 @@ export const client: ClientScript = ({ player, Workspace, ReplicatedStorage, Run
 ### `server/game/place.ts`
 
 ```ts
-// Racing: karts on a ring road. Three laps, a countdown, places as it goes, and each player's best lap kept.
-// - Each player gets a kart on the grid and starts in its seat (a VehicleSeat). W and S are its throttle and A and D
-//   its steering, whichever way the camera looks.
-// - The kart is driven by the client script on its driver's own page: a player's client moves the kart they sit in,
+// Racing: race cars on an asphalt circuit. Three laps, a countdown, live places, and each player's best lap kept.
+// - Each player gets a 3D race car on the grid and starts in its seat (a VehicleSeat). W and S are its throttle and A
+//   and D its steering, whichever way the camera looks.
+// - The car is driven by the client script on its driver's own page: a player's client moves the kart they sit in,
 //   so it answers the keys at once. Each step it sets the kart's speed and turn from the seat's throttle and steering.
 // - The server decides what counts. A lap is the four gates round the road in order, and no quicker than MIN_LAP.
 // - Rounds: waiting, the grid and a countdown, the race (LAPS laps, or RACE_SECONDS at most), the results, and again.
-import { CFrame, Color3, Enum, Instance, UDim, UDim2, Vector2, Vector3 } from "../framework/index"
-import type { BasePart, EnginePlace, Humanoid, IntValue, Model, Player, VehicleSeat } from "../framework/index"
+import {
+  CFrame,
+  Color3,
+  Enum,
+  Instance,
+  UDim,
+  UDim2,
+  Vector2,
+  Vector3,
+  type BasePart,
+  type EnginePlace,
+  type GameShellConfig,
+  type Humanoid,
+  type IntValue,
+  type Model,
+  type Player,
+  type VehicleSeat,
+} from "../framework/index"
+
+const CAR_URLS = [
+  "https://game-assets.sitemills.com/library/kenney/racing-kit/88d76c6bc5c9/Models/GLTF-format/raceCarRed.glb",
+  "https://game-assets.sitemills.com/library/kenney/racing-kit/88d76c6bc5c9/Models/GLTF-format/raceCarGreen.glb",
+  "https://game-assets.sitemills.com/library/kenney/racing-kit/88d76c6bc5c9/Models/GLTF-format/raceCarOrange.glb",
+  "https://game-assets.sitemills.com/library/kenney/racing-kit/88d76c6bc5c9/Models/GLTF-format/raceCarWhite.glb",
+  "https://game-assets.sitemills.com/library/kenney/racing-kit/88d76c6bc5c9/Models/GLTF-format/raceCarRed.glb",
+  "https://game-assets.sitemills.com/library/kenney/racing-kit/88d76c6bc5c9/Models/GLTF-format/raceCarGreen.glb",
+]
+const START_GANTRY_URL = "https://game-assets.sitemills.com/library/kenney/racing-kit/88d76c6bc5c9/Models/GLTF-format/roadStart.glb"
+const GRANDSTAND_URL = "https://game-assets.sitemills.com/library/kenney/racing-kit/88d76c6bc5c9/Models/GLTF-format/grandStand.glb"
+const RED_BARRIER_URL = "https://game-assets.sitemills.com/library/kenney/racing-kit/88d76c6bc5c9/Models/GLTF-format/barrierRed.glb"
+const WHITE_BARRIER_URL = "https://game-assets.sitemills.com/library/kenney/racing-kit/88d76c6bc5c9/Models/GLTF-format/barrierWhite.glb"
+const CHECKERED_FLAG_URL = "https://game-assets.sitemills.com/library/kenney/racing-kit/88d76c6bc5c9/Models/GLTF-format/flagCheckers.glb"
+const LIGHT_POST_URL = "https://game-assets.sitemills.com/library/kenney/racing-kit/88d76c6bc5c9/Models/GLTF-format/lightPostModern.glb"
+const TRACK_TREE_URL = "https://game-assets.sitemills.com/library/kenney/racing-kit/88d76c6bc5c9/Models/GLTF-format/treeLarge.glb"
+const READY_SOUND_URL = "https://game-assets.sitemills.com/library/kenney/synth-voice-2/1aa97678ca2a/Audio/ready.ogg"
+const GO_SOUND_URL = "https://game-assets.sitemills.com/library/kenney/synth-voice-2/1aa97678ca2a/Audio/go.ogg"
+const WINNER_SOUND_URL = "https://game-assets.sitemills.com/library/kenney/synth-voice-2/1aa97678ca2a/Audio/winner.ogg"
+
+export const shell: GameShellConfig = {
+  title: "Sunset Circuit",
+  subtitle: "Six-car grand prix on a floodlit asphalt circuit — nail the apexes, beat the lap record, and claim the checkered flag.",
+  modes: [
+    {
+      id: "grand-prix",
+      name: "3-Lap Grand Prix",
+      description: "Up to 6 drivers battle over 3 timed laps.",
+      minPlayers: 1,
+      maxPlayers: 6,
+    },
+    {
+      id: "time-trial",
+      name: "Time Trial",
+      description: "Solo hot-lapping for the circuit lap record.",
+      minPlayers: 1,
+      maxPlayers: 1,
+    },
+  ],
+  howToPlay: [
+    "Hold W / S (or thumbstick up/down) for throttle and reverse, and A / D to steer.",
+    "Cross all four track sectors in order for each lap to count — tap Back on track if you spin off line.",
+  ],
+}
 
 export const LAPS = 3
 /** How high a kart's middle rides over the ground (its client script holds it there, so nothing drags on it). */
@@ -285,7 +345,7 @@ const OUTER = { x: 150, z: 100 }
 const ROAD = 36
 /** The middle of each side of the road. Karts go along +X on the near side (z = MID.z), then round to the left. */
 const MID = { x: OUTER.x - ROAD / 2, z: OUTER.z - ROAD / 2 }
-const COLOURS = [Color3.fromRGB(220, 60, 60), Color3.fromRGB(60, 120, 230), Color3.fromRGB(240, 190, 50), Color3.fromRGB(70, 180, 90), Color3.fromRGB(180, 90, 220), Color3.fromRGB(240, 130, 50)]
+const COLOURS = [Color3.fromRGB(220, 60, 60), Color3.fromRGB(70, 180, 90), Color3.fromRGB(240, 140, 50), Color3.fromRGB(235, 238, 244), Color3.fromRGB(220, 60, 60), Color3.fromRGB(70, 180, 90)]
 /** Where each kart starts: behind the line, two abreast. */
 const GRID = [0, 1, 2, 3, 4, 5].map((i) => new Vector3(-14 - Math.floor(i / 2) * 12, 0, MID.z + (i % 2 === 0 ? -8 : 8)))
 /** The gates, in the order a lap passes them (the first is the line), each with the way karts cross it. */
@@ -296,27 +356,12 @@ const GATES = [
   { at: new Vector3(-MID.x, 0, 0), along: new Vector3(0, 0, 1) },
 ]
 
-/** A short tone as a WAV data URL (8-bit mono), so the game needs no sound files. */
-function tone(hertz: number, seconds: number): string {
-  const rate = 8000
-  const n = Math.floor(seconds * rate)
-  const number = (value: number, bytes: number) => Array.from({ length: bytes }, (_, i) => Math.floor(value / 256 ** i) % 256)
-  const text = (value: string) => value.split("").map((c) => c.charCodeAt(0))
-  const bytes = [...text("RIFF"), ...number(36 + n, 4), ...text("WAVEfmt "), ...number(16, 4), ...number(1, 2), ...number(1, 2), ...number(rate, 4), ...number(rate, 4), ...number(1, 2), ...number(8, 2), ...text("data"), ...number(n, 4)]
-  for (let i = 0; i < n; i++) bytes.push(Math.round(128 + 90 * Math.sin((2 * Math.PI * hertz * i) / rate) * Math.min(1, (n - i) / 400)))
-  const abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-  let out = ""
-  for (let i = 0; i < bytes.length; i += 3) {
-    const [a, b = 0, c = 0] = [bytes[i], bytes[i + 1], bytes[i + 2]]
-    out += abc[a >> 2] + abc[((a & 3) << 4) | (b >> 4)] + (i + 1 < bytes.length ? abc[((b & 15) << 2) | (c >> 6)] : "=") + (i + 2 < bytes.length ? abc[c & 63] : "=")
-  }
-  return `data:audio/wav;base64,${out}`
-}
-
 type Racer = { player: Player; slot: number; kart: Model; lap: number; next: number; lapStart: number; finished: number | undefined; resetAt: number }
 
 export const place: EnginePlace = ({ Workspace, Players, Lighting, ReplicatedStorage, StarterGui, CollectionService, DataStoreService, task }) => {
-  Lighting.ClockTime = 15
+  Lighting.ClockTime = 16.8
+  new Instance("Sky", Lighting)
+
   const part = (name: string, size: Vector3, at: Vector3, color: Color3, material = Enum.Material.SmoothPlastic, parent: Instance = Workspace) => {
     const p = new Instance("Part")
     p.Name = name
@@ -328,20 +373,54 @@ export const place: EnginePlace = ({ Workspace, Players, Lighting, ReplicatedSto
     p.Parent = parent
     return p
   }
-
-  // The track: grass, the road (one slab, so there are no seams to catch on), the island in its middle, and walls.
-  part("Ground", new Vector3(520, 2, 420), new Vector3(0, -1, 0), Color3.fromRGB(96, 150, 76), Enum.Material.Grass)
-  part("Road", new Vector3(OUTER.x * 2, ROAD_TOP, OUTER.z * 2), new Vector3(0, ROAD_TOP / 2, 0), Color3.fromRGB(62, 64, 70), Enum.Material.Concrete)
-  part("Island", new Vector3((OUTER.x - ROAD) * 2, 3, (OUTER.z - ROAD) * 2), new Vector3(0, 1.5, 0), Color3.fromRGB(86, 140, 70), Enum.Material.Grass)
-  for (const [x, z, w, d] of [[0, OUTER.z + 1, OUTER.x * 2 + 4, 2], [0, -OUTER.z - 1, OUTER.x * 2 + 4, 2], [OUTER.x + 1, 0, 2, OUTER.z * 2], [-OUTER.x - 1, 0, 2, OUTER.z * 2]]) {
-    part("Wall", new Vector3(w, 4, d), new Vector3(x, 2, z), Color3.fromRGB(230, 230, 235), Enum.Material.Concrete)
+  const trackside = (name: string, meshId: string, size: Vector3, cf: CFrame) => {
+    const m = new Instance("MeshPart")
+    m.Name = name
+    m.MeshId = meshId
+    m.Anchored = true
+    m.CanCollide = false
+    m.CanQuery = false
+    m.CanTouch = false
+    m.Size = size
+    m.CFrame = cf
+    m.Parent = Workspace
+    return m
   }
-  // The line, and a red and white post at each corner of the island.
+
+  // The track: grass field, seamless asphalt road slab, grassy infield island, and outer safety walls.
+  part("Ground", new Vector3(520, 2, 420), new Vector3(0, -1, 0), Color3.fromRGB(96, 150, 76), Enum.Material.Grass)
+  part("Road", new Vector3(OUTER.x * 2, ROAD_TOP, OUTER.z * 2), new Vector3(0, ROAD_TOP / 2, 0), Color3.fromRGB(58, 60, 66), Enum.Material.Asphalt)
+  part("Island", new Vector3((OUTER.x - ROAD) * 2, 2.2, (OUTER.z - ROAD) * 2), new Vector3(0, 1.1, 0), Color3.fromRGB(86, 140, 70), Enum.Material.LeafyGrass)
+  for (const [x, z, w, d] of [[0, OUTER.z + 1, OUTER.x * 2 + 4, 2], [0, -OUTER.z - 1, OUTER.x * 2 + 4, 2], [OUTER.x + 1, 0, 2, OUTER.z * 2], [-OUTER.x - 1, 0, 2, OUTER.z * 2]]) {
+    part("Wall", new Vector3(w, 4, d), new Vector3(x, 2, z), Color3.fromRGB(224, 224, 230), Enum.Material.Concrete)
+  }
   part("Line", new Vector3(3, 0.05, ROAD), new Vector3(0, 0.23, MID.z), Color3.fromRGB(245, 245, 245)).CanCollide = false
-  for (const [sx, sz] of [[1, 1], [1, -1], [-1, -1], [-1, 1]]) {
-    for (let i = 0; i < 4; i++) {
-      part("Post", new Vector3(3, 2, 3), new Vector3(sx * (OUTER.x - ROAD - 1.5), 4 + i * 2, sz * (OUTER.z - ROAD - 1.5)), i % 2 === 0 ? Color3.fromRGB(220, 50, 50) : Color3.fromRGB(245, 245, 245))
+
+  // 3D start gantry, checkered flags, spectator grandstands, apex barriers, floodlights, and infield trees.
+  trackside("StartGantry", START_GANTRY_URL, new Vector3(44, 23.4, 70), new CFrame(0, 11.15, MID.z).mul(CFrame.Angles(0, Math.PI / 2, 0)))
+  for (const side of [-1, 1]) {
+    trackside("FinishFlag", CHECKERED_FLAG_URL, new Vector3(2.4, 15, 0.6), new CFrame(2, 8.5, MID.z + side * (ROAD / 2 + 2)))
+  }
+  for (const gx of [-54, -18, 18, 54]) {
+    trackside("Grandstand", GRANDSTAND_URL, new Vector3(24, 21.5, 24), new CFrame(gx, 10.75, OUTER.z + 18).mul(CFrame.Angles(0, Math.PI, 0)))
+  }
+  for (const [sx, sz] of [[1, 1], [1, -1], [-1, -1], [-1, 1]] as const) {
+    for (let i = 0; i < 5; i++) {
+      const url = i % 2 === 0 ? RED_BARRIER_URL : WHITE_BARRIER_URL
+      trackside(
+        "ApexBarrier",
+        url,
+        new Vector3(6, 3.1, 3),
+        new CFrame(sx * (OUTER.x - ROAD - 4 - i * 6.2), 3.7, sz * (OUTER.z - ROAD - 2)),
+      )
     }
+  }
+  for (const lx of [-110, -45, 45, 110]) {
+    trackside("Floodlight", LIGHT_POST_URL, new Vector3(1, 14.1, 3.2), new CFrame(lx, 7.1, OUTER.z + 4).mul(CFrame.Angles(0, Math.PI, 0)))
+    trackside("Floodlight", LIGHT_POST_URL, new Vector3(1, 14.1, 3.2), new CFrame(lx, 7.1, -OUTER.z - 4))
+  }
+  for (const [tx, tz] of [[-70, -28], [-25, 22], [28, -24], [72, 26], [0, 0], [-88, 16], [88, -16]] as const) {
+    trackside("InfieldTree", TRACK_TREE_URL, new Vector3(5, 18.5, 5.5), new CFrame(tx, 11, tz))
   }
 
   // The round: its phase and the countdown are attributes on Workspace, for every page's HUD.
@@ -389,50 +468,55 @@ export const place: EnginePlace = ({ Workspace, Players, Lighting, ReplicatedSto
   }
   showBoard()
 
-  // The countdown's beeps (heard by everyone).
+  // Countdown, start, and finish announcer sounds.
   const beep = new Instance("Sound", Workspace)
   beep.Name = "Beep"
-  beep.SoundId = tone(440, 0.15)
+  beep.SoundId = READY_SOUND_URL
   const go = new Instance("Sound", Workspace)
   go.Name = "Go"
-  go.SoundId = tone(880, 0.45)
+  go.SoundId = GO_SOUND_URL
+  const victorySound = new Instance("Sound", Workspace)
+  victorySound.Name = "Winner"
+  victorySound.SoundId = WINNER_SOUND_URL
 
   // Karts ---------------------------------------------------------------------------------------------------------------
 
   const gridCFrame = (slot: number) => CFrame.lookAt(new Vector3(GRID[slot].X, ROAD_TOP + RIDE, GRID[slot].Z), new Vector3(GRID[slot].X + 1, ROAD_TOP + RIDE, GRID[slot].Z))
-  /** A kart: a chassis (what collides and what's driven), a seat, and its looks welded on. */
+  /** A race car: an invisible physics chassis, a seat, and a 3D race car model welded on facing forward. */
   const makeKart = (player: Player, slot: number) => {
     const kart = new Instance("Model")
     kart.Name = "Kart"
     const frame = gridCFrame(slot)
-    const piece = (name: string, size: Vector3, local: Vector3, color: Color3, shape?: "Cylinder") => {
-      const p = new Instance("Part")
-      p.Name = name
-      p.Size = size
-      p.Color = color
-      if (shape) p.Shape = Enum.PartType.Cylinder
-      p.CFrame = frame.mul(new CFrame(local.X, local.Y, local.Z))
-      p.Parent = kart
-      return p
-    }
-    const chassis = piece("Chassis", new Vector3(4, 1, 7), new Vector3(0, 0, 0), COLOURS[slot])
-    const onto = (p: BasePart) => {
-      // Only for show: it adds no weight and catches on nothing.
-      p.CanCollide = false
-      p.Massless = true
-      const weld = new Instance("WeldConstraint", p)
-      weld.Part0 = chassis
-      weld.Part1 = p
-    }
+    const chassis = new Instance("Part")
+    chassis.Name = "Chassis"
+    chassis.Size = new Vector3(4, 1, 7)
+    chassis.Color = COLOURS[slot]
+    chassis.Transparency = 1
+    chassis.CFrame = frame
+    chassis.Parent = kart
+
+    const carMesh = new Instance("MeshPart")
+    carMesh.Name = "CarBody"
+    carMesh.MeshId = CAR_URLS[slot % CAR_URLS.length]
+    carMesh.Size = new Vector3(5.2, 2.8, 9.4)
+    carMesh.CanCollide = false
+    carMesh.CanQuery = false
+    carMesh.CanTouch = false
+    carMesh.Massless = true
+    carMesh.CFrame = frame.mul(new CFrame(0, 0.55, 0)).mul(CFrame.Angles(0, Math.PI, 0))
+    carMesh.Parent = kart
+    const meshWeld = new Instance("WeldConstraint", carMesh)
+    meshWeld.Part0 = chassis
+    meshWeld.Part1 = carMesh
+
     const seat = new Instance("VehicleSeat")
-    seat.CFrame = frame.mul(new CFrame(0, 0.75, 0.8))
+    seat.CFrame = frame.mul(new CFrame(0, 0.75, 0.6))
+    seat.Transparency = 1
     seat.Parent = kart
     const hold = new Instance("WeldConstraint", seat)
     hold.Part0 = chassis
     hold.Part1 = seat
-    onto(piece("Nose", new Vector3(3, 0.6, 1.6), new Vector3(0, 0.1, -4.2), Color3.fromRGB(40, 42, 50)))
-    onto(piece("Spoiler", new Vector3(4.6, 0.3, 1), new Vector3(0, 1.3, 3.2), Color3.fromRGB(40, 42, 50)))
-    for (const [x, z] of [[-2.4, -2.3], [2.4, -2.3], [-2.4, 2.3], [2.4, 2.3]]) onto(piece("Wheel", new Vector3(0.8, 1.8, 1.8), new Vector3(x, 0.1, z), Color3.fromRGB(25, 25, 28), "Cylinder"))
+
     kart.PrimaryPart = chassis
     kart.SetAttribute("Owner", player.UserId)
     CollectionService.AddTag(kart, "Kart")
@@ -440,13 +524,11 @@ export const place: EnginePlace = ({ Workspace, Players, Lighting, ReplicatedSto
     return kart
   }
   const seatOf = (kart: Model) => kart.FindFirstChildOfClass("VehicleSeat") as VehicleSeat
-  /** A player's character into their kart's seat (as it spawns, and whenever the kart is put somewhere). */
   const seatIn = (racer: Racer) => {
     const humanoid = racer.player.Character?.FindFirstChildOfClass("Humanoid") as Humanoid | undefined
     const seat = seatOf(racer.kart)
     if (humanoid && humanoid.Health > 0 && seat.Occupant !== humanoid) seat.Sit(humanoid)
   }
-  /** A kart put somewhere, still, with its driver in it. */
   const putKart = (racer: Racer, at: CFrame) => {
     racer.kart.PivotTo(at)
     const chassis = racer.kart.PrimaryPart as BasePart
@@ -460,7 +542,6 @@ export const place: EnginePlace = ({ Workspace, Players, Lighting, ReplicatedSto
     stats.Name = "leaderstats"
     new Instance("IntValue", stats).Name = "Wins"
     stats.Parent = player
-    // Up to six race; others watch.
     const taken = new Set([...racers.values()].map((r) => r.slot))
     const slot = [0, 1, 2, 3, 4, 5].find((s) => !taken.has(s))
     if (slot === undefined) return
@@ -487,6 +568,7 @@ export const place: EnginePlace = ({ Workspace, Players, Lighting, ReplicatedSto
   const finish = (racer: Racer, total: number) => {
     racer.finished = total
     racer.player.SetAttribute("Finished", total)
+    victorySound.Play()
   }
   const lapDone = async (racer: Racer) => {
     const time = now() - racer.lapStart
@@ -507,7 +589,6 @@ export const place: EnginePlace = ({ Workspace, Players, Lighting, ReplicatedSto
     }
   }
   GATES.forEach((gate, index) => {
-    // Across the road, and thick the way karts go (a fast kart moves several studs between the server's looks at it).
     const across = Math.abs(gate.along.X) > 0 ? new Vector3(12, 8, ROAD) : new Vector3(ROAD, 8, 12)
     const trigger = part(`Gate${index}`, across, new Vector3(gate.at.X, 4, gate.at.Z), Color3.fromRGB(255, 255, 255))
     trigger.Transparency = 1
@@ -518,7 +599,6 @@ export const place: EnginePlace = ({ Workspace, Players, Lighting, ReplicatedSto
       const racer = kart ? byKart.get(kart) : undefined
       if (!racer || phase !== "Racing" || racer.finished !== undefined || racer.next !== index) return
       racer.next = (index + 1) % GATES.length
-      // The line, after the three other gates: a lap.
       if (index === 0) void lapDone(racer)
     })
   })
@@ -539,7 +619,6 @@ export const place: EnginePlace = ({ Workspace, Players, Lighting, ReplicatedSto
   // The round ---------------------------------------------------------------------------------------------------------
 
   let raceStart = 0
-  /** Who's ahead: those who've finished (the quickest first), then by laps, gates passed, and how near the next gate. */
   const places = () => {
     const progress = (r: Racer) => {
       const next = GATES[r.next].at
@@ -563,9 +642,9 @@ export const place: EnginePlace = ({ Workspace, Players, Lighting, ReplicatedSto
         putKart(racer, gridCFrame(racer.slot))
       }
       setPhase("Countdown")
+      beep.Play()
       for (let count = COUNT_SECONDS; count > 0; count--) {
         Workspace.SetAttribute("Count", count)
-        beep.Play()
         await task.wait(1)
       }
       Workspace.SetAttribute("Count", 0)
@@ -573,7 +652,6 @@ export const place: EnginePlace = ({ Workspace, Players, Lighting, ReplicatedSto
       raceStart = now()
       for (const racer of racers.values()) {
         racer.lap = 0
-        // The line itself doesn't count until the other three gates have been passed.
         racer.next = 1
         racer.lapStart = raceStart
       }
@@ -582,7 +660,6 @@ export const place: EnginePlace = ({ Workspace, Players, Lighting, ReplicatedSto
         places().forEach((racer, i) => racer.player.SetAttribute("Place", i + 1))
         await task.wait(0.25)
       }
-      // The finish: on the board, and a win for whoever was first across.
       const order = places()
       order.forEach((racer, i) => racer.player.SetAttribute("Place", i + 1))
       lastRace = order.slice(0, 3).map((racer, i) => `${i + 1}. ${racer.player.DisplayName || racer.player.Name}${racer.finished !== undefined ? ` ${seconds(racer.finished)}` : ""}`)
@@ -609,37 +686,38 @@ export const place: EnginePlace = ({ Workspace, Players, Lighting, ReplicatedSto
     l.BorderSizePixel = 0
     l.TextColor3 = Color3.fromRGB(255, 255, 255)
     l.Font = Enum.Font.GothamBold
-    l.TextSize = 17
+    l.TextSize = 18
     l.Text = ""
     new Instance("UICorner", l).CornerRadius = new UDim(0, 10)
     return l
   }
   label("Lap", 16, 16, 150)
   label("Time", 16, 56, 150)
-  label("Best", 16, 96, 150).TextColor3 = Color3.fromRGB(255, 220, 90)
-  label("Place", 16, 136, 150)
-  const speed = label("Speed", 0, 0, 130)
+  label("Best", 16, 96, 150).TextColor3 = Color3.fromRGB(255, 215, 80)
+  label("Place", 174, 16, 116).TextSize = 22
+  const speed = label("Speed", 0, 0, 110)
   speed.AnchorPoint = new Vector2(1, 1)
   speed.Position = new UDim2(1, -16, 1, -16)
-  speed.Size = UDim2.fromOffset(130, 44)
-  speed.TextSize = 24
-  const banner = label("Banner", 0, 0, 420)
-  banner.AnchorPoint = new Vector2(0.5, 0.5)
-  banner.Position = UDim2.fromScale(0.5, 0.3)
-  banner.Size = UDim2.fromOffset(420, 90)
-  banner.TextSize = 52
-  banner.Visible = false
+  speed.Size = UDim2.fromOffset(110, 56)
+  speed.TextSize = 28
   const back = new Instance("TextButton", hud)
   back.Name = "Reset"
-  back.AnchorPoint = new Vector2(0, 1)
-  back.Position = new UDim2(0, 16, 1, -16)
-  back.Size = UDim2.fromOffset(170, 40)
-  back.BackgroundColor3 = Color3.fromRGB(60, 120, 230)
+  back.AnchorPoint = new Vector2(1, 1)
+  back.Position = new UDim2(1, -134, 1, -16)
+  back.Size = UDim2.fromOffset(130, 56)
+  back.BackgroundColor3 = Color3.fromRGB(40, 48, 68)
+  back.BackgroundTransparency = 0.2
   back.TextColor3 = Color3.fromRGB(255, 255, 255)
   back.Font = Enum.Font.GothamBold
   back.TextSize = 15
-  back.Text = "Back on track (R)"
+  back.Text = "Back on track"
   new Instance("UICorner", back).CornerRadius = new UDim(0, 10)
+  const banner = label("Banner", 0, 0, 520)
+  banner.AnchorPoint = new Vector2(0.5, 0.5)
+  banner.Position = UDim2.fromScale(0.5, 0.32)
+  banner.Size = UDim2.fromOffset(520, 86)
+  banner.TextSize = 44
+  banner.Visible = false
   hud.Parent = StarterGui
 }
 ```
@@ -725,11 +803,12 @@ describe("the racing game", () => {
 ### `server/rooms/game_room.ts`
 
 ```ts
-import { engineRoom } from "../framework/index"
-import { place } from "../game/place"
+import { engineRoom, type GameShellConfig } from "../framework/index"
+import * as gamePlace from "../game/place"
 
 // The game's server: a room runs the place, and each player who opens the page joins it.
-sdk.registerRoom("game", engineRoom(place, { maxPlayers: 16 }))
+const { place, shell } = gamePlace as typeof gamePlace & { shell?: GameShellConfig }
+sdk.registerRoom("game", engineRoom(place, { maxPlayers: 16, shell }))
 ```
 
 ### `sitemills.json`
@@ -1002,42 +1081,52 @@ createRoot(document.getElementById("root")!).render(
 ```tsx
 import { useEffect, useRef, useState } from "react"
 import RAPIER from "@dimforge/rapier3d-compat"
-import { joinRoom } from "@/api/room-client"
-import { playOnline, playSolo } from "@/framework/index"
+import { createRoom, joinRoom, joinRoomByCode, listRooms } from "@/api/room-client"
+import { mountGameShell, type GameShellConfig } from "@/framework/index"
 import { client } from "../../server/game/client"
-import { place } from "../../server/game/place"
+import * as gamePlace from "../../server/game/place"
 
 /**
- * The game. Everyone who opens the page plays together in a room (server/rooms/game_room.ts runs the place there);
- * with ?solo in the address, it plays alone in the page. With ?debug, window.__game is the game's view (its engine,
- * localPlayer and, alone, the server's engine) for checking it from the browser console or a test.
+ * The game page: opens on the game shell overlay (title screen, modes, server browser, private room codes, how to play,
+ * and graphics/audio settings) backed by a live 3D preview. With `?solo` it plays alone in the page; with `?code=...`,
+ * `?room=...`, or `?autojoin` it enters a room immediately. With `?debug`, `window.__game` exposes the active game view.
  */
 export function GamePage() {
+  const container = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
   const [problem, setProblem] = useState<string | null>(null)
   useEffect(() => {
-    let stop: (() => void) | null = null
+    let dispose: (() => void) | null = null
     let gone = false
     void (async () => {
       await RAPIER.init()
-      if (gone || !canvas.current) return
-      const solo = new URLSearchParams(window.location.search).has("solo")
-      const game = solo
-        ? await playSolo({ canvas: canvas.current, physics: RAPIER, place, client })
-        : await playOnline({ canvas: canvas.current, physics: RAPIER, client, room: await joinRoom("game", { roomId: "auto" }) })
-      if (gone) game.stop()
-      else stop = () => game.stop()
-      if (new URLSearchParams(window.location.search).has("debug")) (window as unknown as { __game: unknown }).__game = game
+      if (gone || !canvas.current || !container.current) return
+      const shellConfig = (gamePlace as { shell?: GameShellConfig }).shell
+      const shell = await mountGameShell({
+        canvas: canvas.current,
+        container: container.current,
+        physics: RAPIER,
+        place: gamePlace.place,
+        client,
+        shell: shellConfig,
+        rooms: { joinRoom, listRooms, createRoom, joinRoomByCode },
+        onError: (msg) => setProblem(msg),
+        onGameChange: (g) => {
+          if (g) setProblem(null)
+        },
+      })
+      if (gone) shell.dispose()
+      else dispose = () => shell.dispose()
     })().catch((error: unknown) => setProblem(error instanceof Error ? error.message : String(error)))
     return () => {
       gone = true
-      stop?.()
+      dispose?.()
     }
   }, [])
   return (
-    <div className="relative h-svh w-full select-none overflow-hidden bg-black">
+    <div ref={container} className="relative h-svh w-full select-none overflow-hidden bg-black">
       <canvas ref={canvas} className="block h-full w-full" />
-      {problem && <div className="absolute inset-x-0 top-4 mx-auto w-fit max-w-[90%] rounded-lg bg-red-600 px-4 py-2 text-sm text-white">{problem}</div>}
+      {problem && <div className="absolute inset-x-0 top-4 z-30 mx-auto w-fit max-w-[90%] rounded-lg bg-red-600 px-4 py-2 text-sm text-white">{problem}</div>}
     </div>
   )
 }

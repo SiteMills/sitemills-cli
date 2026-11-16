@@ -140,23 +140,103 @@ export const client: ClientScript = ({ player }) => {
 ```ts
 // The game's server Script: it builds the world and runs the game, as a Roblox place's server Script does. It runs on
 // the server (the room, or the page when playing alone); every player sees what it builds.
-import { Color3, Enum, Instance, Vector3, type EnginePlace } from "../framework/index"
+import {
+  CFrame,
+  Color3,
+  Enum,
+  Instance,
+  Vector3,
+  type EnginePlace,
+  type GameShellConfig,
+} from "../framework/index"
+
+const RUIN_ARCH_URL = "https://game-assets.sitemills.com/library/kenney/castle-kit/a2095edf1a6e/Models/GLB-format/tower-square-arch.glb"
+const RUIN_PILLAR_URL = "https://game-assets.sitemills.com/library/kenney/castle-kit/a2095edf1a6e/Models/GLB-format/wall-pillar.glb"
+const BANNER_URL = "https://game-assets.sitemills.com/library/kenney/castle-kit/a2095edf1a6e/Models/GLB-format/flag-banner-long.glb"
+const PINE_URL = "https://game-assets.sitemills.com/library/kenney/survival-kit/816597879919/Models/GLB-format/tree.glb"
+const TALL_PINE_URL = "https://game-assets.sitemills.com/library/kenney/survival-kit/816597879919/Models/GLB-format/tree-tall.glb"
+const ROCK_URL = "https://game-assets.sitemills.com/library/kenney/survival-kit/816597879919/Models/GLB-format/rock-b.glb"
+const CAMPFIRE_URL = "https://game-assets.sitemills.com/library/kenney/survival-kit/816597879919/Models/GLB-format/campfire-pit.glb"
+
+export const shell: GameShellConfig = {
+  title: "Sunlit Courtyard",
+  subtitle: "A sunlit stone courtyard surrounded by pine woods — ready to turn into your own 3D world.",
+  modes: [
+    {
+      id: "freeplay",
+      name: "Freeplay",
+      description: "Explore the courtyard together.",
+      minPlayers: 1,
+      maxPlayers: 12,
+    },
+  ],
+  howToPlay: [
+    "Move with WASD or the thumbstick and press Space to jump.",
+    "Edit server/game/place.ts and server/game/client.ts to build your own world and rules.",
+  ],
+}
 
 export const place: EnginePlace = ({ Workspace, Lighting, Players }) => {
-  Lighting.ClockTime = 14
+  Lighting.ClockTime = 15
+  new Instance("Sky", Lighting)
 
   const baseplate = new Instance("Part")
   baseplate.Name = "Baseplate"
   baseplate.Anchored = true
   baseplate.Size = new Vector3(512, 16, 512)
   baseplate.Position = new Vector3(0, -8, 0)
-  baseplate.Color = Color3.fromRGB(91, 93, 105)
-  baseplate.Material = Enum.Material.Concrete
+  baseplate.Color = Color3.fromRGB(98, 148, 76)
+  baseplate.Material = Enum.Material.Grass
   baseplate.Parent = Workspace
 
+  const plaza = new Instance("Part")
+  plaza.Name = "Plaza"
+  plaza.Anchored = true
+  plaza.Size = new Vector3(44, 0.3, 44)
+  plaza.Position = new Vector3(0, 0.15, 0)
+  plaza.Color = Color3.fromRGB(168, 162, 152)
+  plaza.Material = Enum.Material.Cobblestone
+  plaza.Parent = Workspace
+
   const spawn = new Instance("SpawnLocation")
-  spawn.Position = new Vector3(0, 0.5, 0)
+  spawn.Size = new Vector3(12, 0.6, 12)
+  spawn.Position = new Vector3(0, 0.45, 0)
+  spawn.Color = Color3.fromRGB(214, 206, 192)
+  spawn.Material = Enum.Material.Marble
   spawn.Parent = Workspace
+
+  const prop = (name: string, meshId: string, size: Vector3, cf: CFrame, collide = true) => {
+    const m = new Instance("MeshPart")
+    m.Name = name
+    m.MeshId = meshId
+    m.Anchored = true
+    m.CanCollide = collide
+    m.Size = size
+    m.CFrame = cf
+    m.Parent = Workspace
+    return m
+  }
+
+  // Stone ruin arches, pillars, and banners framing the north side of the plaza.
+  prop("NorthArch", RUIN_ARCH_URL, new Vector3(10, 11, 10), new CFrame(0, 5.5, -24))
+  for (const side of [-1, 1]) {
+    prop("RuinPillar", RUIN_PILLAR_URL, new Vector3(8, 11, 8), new CFrame(side * 16, 5.5, -22))
+    prop("CourtyardBanner", BANNER_URL, new Vector3(0.5, 16, 4.8), new CFrame(side * 7, 8, -23).mul(CFrame.Angles(0, Math.PI / 2, 0)), false)
+  }
+  prop("Campfire", CAMPFIRE_URL, new Vector3(3.6, 1.4, 3.6), new CFrame(12, 0.85, 10))
+
+  // Pines and mossy boulders ringing the clearing.
+  const grove: [number, number, boolean][] = [
+    [-34, -30, true], [-42, -12, false], [-36, 24, true], [-18, -42, false],
+    [22, -40, true], [38, -24, false], [40, 14, true], [30, 34, false],
+  ]
+  grove.forEach(([x, z, tall], i) => {
+    const h = tall ? 20.5 : 16.9
+    prop("Pine", tall ? TALL_PINE_URL : PINE_URL, new Vector3(6.6, h, 6.3), new CFrame(x, h / 2, z).mul(CFrame.Angles(0, i * 1.1, 0)))
+  })
+  for (const [x, z, yaw] of [[-28, 12, 0.4], [28, -8, 1.7], [-14, 32, 2.5], [18, 28, 0.9]] as const) {
+    prop("Boulder", ROCK_URL, new Vector3(10, 5, 8.7), new CFrame(x, 2.2, z).mul(CFrame.Angles(0, yaw, 0)))
+  }
 
   Players.PlayerAdded.Connect((player) => {
     console.log(`${player.Name} joined`)
@@ -191,11 +271,12 @@ describe("the game", () => {
 ### `server/rooms/game_room.ts`
 
 ```ts
-import { engineRoom } from "../framework/index"
-import { place } from "../game/place"
+import { engineRoom, type GameShellConfig } from "../framework/index"
+import * as gamePlace from "../game/place"
 
 // The game's server: a room runs the place, and each player who opens the page joins it.
-sdk.registerRoom("game", engineRoom(place, { maxPlayers: 16 }))
+const { place, shell } = gamePlace as typeof gamePlace & { shell?: GameShellConfig }
+sdk.registerRoom("game", engineRoom(place, { maxPlayers: 16, shell }))
 ```
 
 ### `sitemills.json`
@@ -468,42 +549,52 @@ createRoot(document.getElementById("root")!).render(
 ```tsx
 import { useEffect, useRef, useState } from "react"
 import RAPIER from "@dimforge/rapier3d-compat"
-import { joinRoom } from "@/api/room-client"
-import { playOnline, playSolo } from "@/framework/index"
+import { createRoom, joinRoom, joinRoomByCode, listRooms } from "@/api/room-client"
+import { mountGameShell, type GameShellConfig } from "@/framework/index"
 import { client } from "../../server/game/client"
-import { place } from "../../server/game/place"
+import * as gamePlace from "../../server/game/place"
 
 /**
- * The game. Everyone who opens the page plays together in a room (server/rooms/game_room.ts runs the place there);
- * with ?solo in the address, it plays alone in the page. With ?debug, window.__game is the game's view (its engine,
- * localPlayer and, alone, the server's engine) for checking it from the browser console or a test.
+ * The game page: opens on the game shell overlay (title screen, modes, server browser, private room codes, how to play,
+ * and graphics/audio settings) backed by a live 3D preview. With `?solo` it plays alone in the page; with `?code=...`,
+ * `?room=...`, or `?autojoin` it enters a room immediately. With `?debug`, `window.__game` exposes the active game view.
  */
 export function GamePage() {
+  const container = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
   const [problem, setProblem] = useState<string | null>(null)
   useEffect(() => {
-    let stop: (() => void) | null = null
+    let dispose: (() => void) | null = null
     let gone = false
     void (async () => {
       await RAPIER.init()
-      if (gone || !canvas.current) return
-      const solo = new URLSearchParams(window.location.search).has("solo")
-      const game = solo
-        ? await playSolo({ canvas: canvas.current, physics: RAPIER, place, client })
-        : await playOnline({ canvas: canvas.current, physics: RAPIER, client, room: await joinRoom("game", { roomId: "auto" }) })
-      if (gone) game.stop()
-      else stop = () => game.stop()
-      if (new URLSearchParams(window.location.search).has("debug")) (window as unknown as { __game: unknown }).__game = game
+      if (gone || !canvas.current || !container.current) return
+      const shellConfig = (gamePlace as { shell?: GameShellConfig }).shell
+      const shell = await mountGameShell({
+        canvas: canvas.current,
+        container: container.current,
+        physics: RAPIER,
+        place: gamePlace.place,
+        client,
+        shell: shellConfig,
+        rooms: { joinRoom, listRooms, createRoom, joinRoomByCode },
+        onError: (msg) => setProblem(msg),
+        onGameChange: (g) => {
+          if (g) setProblem(null)
+        },
+      })
+      if (gone) shell.dispose()
+      else dispose = () => shell.dispose()
     })().catch((error: unknown) => setProblem(error instanceof Error ? error.message : String(error)))
     return () => {
       gone = true
-      stop?.()
+      dispose?.()
     }
   }, [])
   return (
-    <div className="relative h-svh w-full select-none overflow-hidden bg-black">
+    <div ref={container} className="relative h-svh w-full select-none overflow-hidden bg-black">
       <canvas ref={canvas} className="block h-full w-full" />
-      {problem && <div className="absolute inset-x-0 top-4 mx-auto w-fit max-w-[90%] rounded-lg bg-red-600 px-4 py-2 text-sm text-white">{problem}</div>}
+      {problem && <div className="absolute inset-x-0 top-4 z-30 mx-auto w-fit max-w-[90%] rounded-lg bg-red-600 px-4 py-2 text-sm text-white">{problem}</div>}
     </div>
   )
 }

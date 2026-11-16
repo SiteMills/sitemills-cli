@@ -142,9 +142,9 @@ export const client: ClientScript = ({ player, RunService }) => {
 ### `server/game/place.ts`
 
 ```ts
-// Open world: a town to walk and drive around. Coins to collect (kept between visits in a DataStore), a car anyone can
-// drive (its VehicleSeat's Throttle and Steer turn its wheel motors), a shop with a ProximityPrompt that sells speed,
-// and townsfolk walking between places along paths (PathfindingService).
+// Open world: a sunlit town to walk and drive around. Coins to collect (kept between visits in a DataStore), a sports
+// car anyone can drive (its VehicleSeat's Throttle and Steer turn its wheel motors), a market stall with a
+// ProximityPrompt that sells speed, and townsfolk walking between places along paths (PathfindingService).
 import {
   CFrame,
   Color3,
@@ -153,16 +153,72 @@ import {
   UDim,
   UDim2,
   Vector3,
-  defaultCharacter,
+  modelCharacter,
   type BasePart,
   type EnginePlace,
+  type GameShellConfig,
   type HingeConstraint,
   type Humanoid,
   type IntValue,
 } from "../framework/index"
 
-export const place: EnginePlace = ({ Workspace, Lighting, Players, StarterGui, RunService, DataStoreService, PathfindingService, task }) => {
-  Lighting.ClockTime = 16
+const PLAYER_URL = "https://game-assets.sitemills.com/library/quaternius/ultimate-platformer-pack/9de203bd37df/Character/glTF/Character.glb"
+const CITIZEN_URL = "https://game-assets.sitemills.com/library/kenney/mini-dungeon/0b0b44e6d2bc/Models/GLB-format/character-human.glb"
+const HOUSE_A_URL = "https://game-assets.sitemills.com/library/kenney/city-kit-suburban/61b19bfc1b12/Models/GLB-format/building-type-a.glb"
+const HOUSE_B_URL = "https://game-assets.sitemills.com/library/kenney/city-kit-suburban/61b19bfc1b12/Models/GLB-format/building-type-c.glb"
+const COTTAGE_URL = "https://game-assets.sitemills.com/library/kenney/city-kit-suburban/61b19bfc1b12/Models/GLB-format/building-type-g.glb"
+const SHOP_BLDG_URL = "https://game-assets.sitemills.com/library/kenney/city-kit-commercial/b3824e616b62/Models/GLB-format/building-c.glb"
+const STALL_URL = "https://game-assets.sitemills.com/library/kenney/fantasy-town-kit/d842ff2cf531/Models/GLB-format/stall-red.glb"
+const FOUNTAIN_URL = "https://game-assets.sitemills.com/library/kenney/fantasy-town-kit/d842ff2cf531/Models/GLB-format/fountain-round.glb"
+const SPORTS_CAR_URL = "https://game-assets.sitemills.com/library/kenney/car-kit/13fdbc4bf754/Models/GLB-format/sedan-sports.glb"
+const PARK_TREE_URL = "https://game-assets.sitemills.com/library/kenney/city-kit-suburban/61b19bfc1b12/Models/GLB-format/tree-large.glb"
+const STREET_LIGHT_URL = "https://game-assets.sitemills.com/library/kenney/city-kit-roads/b142988f78f7/Models/GLB-format/light-curved.glb"
+const COIN_URL = "https://game-assets.sitemills.com/library/quaternius/ultimate-platformer-pack/9de203bd37df/Powerups-and-Pickups/glTF/Coin.glb"
+const COIN_SOUND_URL = "https://game-assets.sitemills.com/library/kenney/rpg-audio/367ea9e4cb91/Audio/handleCoins.ogg"
+const BUY_SOUND_URL = "https://game-assets.sitemills.com/library/kenney/digital-audio/d5e67cad8eea/Audio/powerUp2.ogg"
+
+export const shell: GameShellConfig = {
+  title: "Sunlit Harbor Town",
+  subtitle: "Stroll tree-lined avenues, gather spinning gold coins, buy speed boots at the market stall, and cruise in the town sports car.",
+  modes: [
+    {
+      id: "explore",
+      name: "Town Life",
+      description: "Open-world town hangout for 1–16 players.",
+      minPlayers: 1,
+      maxPlayers: 16,
+    },
+  ],
+  howToPlay: [
+    "Walk with WASD or the thumbstick to collect gold coins saved across visits.",
+    "Visit the red market stall with 10 coins for a speed boost, or hop into the sports car's driver seat to cruise the avenues.",
+  ],
+}
+
+export const place: EnginePlace = ({
+  Workspace,
+  Lighting,
+  Players,
+  StarterPlayer,
+  StarterGui,
+  RunService,
+  DataStoreService,
+  PathfindingService,
+  task,
+}) => {
+  Lighting.ClockTime = 15.5
+  new Instance("Sky", Lighting)
+
+  const avatar = modelCharacter("StarterCharacter", PLAYER_URL, {
+    idle: "Idle",
+    walk: "Walk",
+    run: "Run",
+    jump: "Jump",
+    fall: "Jump_Idle",
+    die: "Death",
+    wave: "Wave",
+  })
+  avatar.Parent = StarterPlayer
 
   const part = (name: string, size: Vector3, at: Vector3, color: Color3, material = Enum.Material.SmoothPlastic, parent: Instance = Workspace) => {
     const p = new Instance("Part")
@@ -175,25 +231,63 @@ export const place: EnginePlace = ({ Workspace, Lighting, Players, StarterGui, R
     p.Parent = parent
     return p
   }
+  const meshProp = (name: string, meshId: string, size: Vector3, cf: CFrame, collide = true) => {
+    const m = new Instance("MeshPart")
+    m.Name = name
+    m.MeshId = meshId
+    m.Anchored = true
+    m.CanCollide = collide
+    if (!collide) {
+      m.CanTouch = false
+      m.CanQuery = false
+    }
+    m.Size = size
+    m.CFrame = cf
+    m.Parent = Workspace
+    return m
+  }
 
-  // The town: grass, two crossing roads, houses along them.
-  part("Grass", new Vector3(400, 2, 400), new Vector3(0, -1, 0), Color3.fromRGB(96, 160, 72), Enum.Material.Grass)
-  part("RoadNS", new Vector3(24, 0.2, 400), new Vector3(0, 0.1, 0), Color3.fromRGB(60, 60, 66), Enum.Material.Asphalt)
-  part("RoadEW", new Vector3(400, 0.2, 24), new Vector3(0, 0.12, 0), Color3.fromRGB(60, 60, 66), Enum.Material.Asphalt)
-  const colours = [Color3.fromRGB(230, 200, 160), Color3.fromRGB(190, 120, 100), Color3.fromRGB(150, 180, 210), Color3.fromRGB(220, 220, 220)]
+  // Lawn, crossing asphalt avenues, cobblestone central square, fountain, houses, trees, and street lamps.
+  part("Grass", new Vector3(400, 2, 400), new Vector3(0, -1, 0), Color3.fromRGB(98, 152, 74), Enum.Material.Grass)
+  part("RoadNS", new Vector3(24, 0.2, 400), new Vector3(0, 0.1, 0), Color3.fromRGB(64, 66, 72), Enum.Material.Asphalt)
+  part("RoadEW", new Vector3(400, 0.2, 24), new Vector3(0, 0.12, 0), Color3.fromRGB(64, 66, 72), Enum.Material.Asphalt)
+  part("Square", new Vector3(32, 0.22, 32), new Vector3(0, 0.14, 0), Color3.fromRGB(178, 170, 158), Enum.Material.Cobblestone)
+  meshProp("TownFountain", FOUNTAIN_URL, new Vector3(13, 2.2, 13), new CFrame(0, 1.25, 0))
+
+  const homeSpecs = [
+    { url: HOUSE_A_URL, size: new Vector3(26, 20, 22) },
+    { url: SHOP_BLDG_URL, size: new Vector3(21.2, 21.4, 24) },
+    { url: HOUSE_B_URL, size: new Vector3(26, 24.8, 22) },
+    { url: COTTAGE_URL, size: new Vector3(28, 18.4, 24) },
+  ]
   let n = 0
-  for (const x of [-60, -30, 30, 60]) {
-    for (const z of [-60, 60]) {
-      const house = new Instance("Model")
-      house.Name = `House${++n}`
-      part("Walls", new Vector3(18, 12, 18), new Vector3(x, 6, z), colours[n % colours.length], Enum.Material.Brick, house)
-      part("Roof", new Vector3(20, 2, 20), new Vector3(x, 13, z), Color3.fromRGB(120, 60, 50), Enum.Material.WoodPlanks, house)
-      house.Parent = Workspace
+  for (const x of [-64, -32, 32, 64]) {
+    for (const z of [-64, 64]) {
+      const spec = homeSpecs[n % homeSpecs.length]
+      const yaw = z < 0 ? 0 : Math.PI
+      meshProp(`House${++n}`, spec.url, spec.size, new CFrame(x, spec.size.Y / 2, z).mul(CFrame.Angles(0, yaw, 0)))
     }
   }
+  for (const [tx, tz] of [[-52, -26], [-28, 30], [32, 30], [54, -26], [-78, -28], [78, 28]] as const) {
+    meshProp("ParkTree", PARK_TREE_URL, new Vector3(4.5, 15.5, 4.9), new CFrame(tx, 7.75, tz))
+  }
+  for (const [lx, lz, yaw] of [[-14, -36, 0], [14, -36, Math.PI], [-14, 36, 0], [14, 36, Math.PI]] as const) {
+    meshProp("StreetLamp", STREET_LIGHT_URL, new Vector3(1, 12.2, 4.1), new CFrame(lx, 6.1, lz).mul(CFrame.Angles(0, yaw, 0)), false)
+  }
+
   const spawn = new Instance("SpawnLocation")
-  spawn.Position = new Vector3(-20, 0.5, -20)
+  spawn.Size = new Vector3(10, 0.6, 10)
+  spawn.Position = new Vector3(-20, 0.3, -20)
+  spawn.Color = Color3.fromRGB(205, 198, 184)
+  spawn.Material = Enum.Material.Marble
   spawn.Parent = Workspace
+
+  const coinSound = new Instance("Sound", Workspace)
+  coinSound.Name = "CoinPickup"
+  coinSound.SoundId = COIN_SOUND_URL
+  const buySound = new Instance("Sound", Workspace)
+  buySound.Name = "BuySpeed"
+  buySound.SoundId = BUY_SOUND_URL
 
   // Coins: each player's count is in leaderstats, and kept in a DataStore by their UserId.
   const saves = DataStoreService.GetDataStore("Coins")
@@ -209,16 +303,15 @@ export const place: EnginePlace = ({ Workspace, Lighting, Players, StarterGui, R
     const coins = player.FindFirstChild("leaderstats")?.FindFirstChild("Coins") as IntValue | undefined
     if (coins) void saves.SetAsync(String(player.UserId), coins.Value)
   })
+  const spinning = new Set<BasePart>()
   const coinAt = (at: Vector3) => {
-    const coin = new Instance("Part")
+    const coin = new Instance("MeshPart")
     coin.Name = "Coin"
+    coin.MeshId = COIN_URL
     coin.Anchored = true
     coin.CanCollide = false
-    coin.Shape = Enum.PartType.Cylinder
-    coin.Size = new Vector3(0.4, 3, 3)
+    coin.Size = new Vector3(2.8, 2.8, 1.2)
     coin.CFrame = new CFrame(at.X, at.Y, at.Z)
-    coin.Color = Color3.fromRGB(255, 205, 50)
-    coin.Material = Enum.Material.Neon
     coin.Parent = Workspace
     spinning.add(coin)
     coin.Touched.Connect((hit) => {
@@ -226,13 +319,11 @@ export const place: EnginePlace = ({ Workspace, Lighting, Players, StarterGui, R
       const coins = player?.FindFirstChild("leaderstats")?.FindFirstChild("Coins") as IntValue | undefined
       if (!coins || !coin.Parent) return
       coins.Value += 1
+      coinSound.Play()
       coin.Destroy()
-      // A new one somewhere else, a little later.
       task.delay(5, () => coinAt(new Vector3((Math.random() - 0.5) * 160, 2.5, (Math.random() - 0.5) * 160)))
     })
   }
-  // Coins turn as they wait (a Heartbeat turns each a little every frame).
-  const spinning = new Set<BasePart>()
   RunService.Heartbeat.Connect((dt) => {
     for (const coin of spinning) {
       if (!coin.Parent) spinning.delete(coin)
@@ -241,8 +332,10 @@ export const place: EnginePlace = ({ Workspace, Lighting, Players, StarterGui, R
   })
   for (let i = 0; i < 12; i++) coinAt(new Vector3((i % 4) * 14 - 21, 2.5, Math.floor(i / 4) * 14 - 40))
 
-  // The shop: a counter with a ProximityPrompt. 10 coins buy speed.
-  const shop = part("Shop", new Vector3(8, 4, 4), new Vector3(20, 2, -20), Color3.fromRGB(80, 140, 230))
+  // The shop: a market stall with a ProximityPrompt. 10 coins buy speed.
+  const shop = part("Shop", new Vector3(8, 4, 4), new Vector3(20, 2, -20), Color3.fromRGB(145, 98, 62), Enum.Material.WoodPlanks)
+  shop.Transparency = 1
+  meshProp("MarketStall", STALL_URL, new Vector3(8, 9.9, 8), new CFrame(20, 4.95, -20), false)
   const prompt = new Instance("ProximityPrompt", shop)
   prompt.ActionText = "Buy speed"
   prompt.ObjectText = "10 coins"
@@ -252,27 +345,43 @@ export const place: EnginePlace = ({ Workspace, Lighting, Players, StarterGui, R
     if (!coins || !humanoid || coins.Value < 10) return
     coins.Value -= 10
     humanoid.WalkSpeed = 26
+    buySound.Play()
   })
 
-  // A car: a chassis on four motorised wheels, and a VehicleSeat. Its Throttle and Steer drive the wheels.
+  // A sports car: a physics chassis on four motorised wheels, a VehicleSeat, and a 3D car body welded on.
   const car = new Instance("Model")
   car.Name = "Car"
-  const chassis = part("Chassis", new Vector3(6, 1, 10), new Vector3(-8, 3, 20), Color3.fromRGB(220, 50, 50), Enum.Material.SmoothPlastic, car)
+  const chassis = part("Chassis", new Vector3(5.4, 1, 10), new Vector3(-3.5, 3, 28), Color3.fromRGB(36, 38, 44), Enum.Material.SmoothPlastic, car)
   chassis.Anchored = false
+  chassis.Transparency = 1
+  const carBody = new Instance("MeshPart")
+  carBody.Name = "Body"
+  carBody.MeshId = SPORTS_CAR_URL
+  carBody.Size = new Vector3(5.2, 4.4, 10.2)
+  carBody.CanCollide = false
+  carBody.CanQuery = false
+  carBody.CanTouch = false
+  carBody.Massless = true
+  carBody.CFrame = chassis.CFrame.mul(new CFrame(0, 0.7, 0)).mul(CFrame.Angles(0, Math.PI, 0))
+  carBody.Parent = car
+  const bodyWeld = new Instance("WeldConstraint", carBody)
+  bodyWeld.Part0 = chassis
+  bodyWeld.Part1 = carBody
   const seat = new Instance("VehicleSeat")
-  seat.Position = new Vector3(-8, 4, 20)
+  seat.Position = new Vector3(-3.5, 3.6, 28.4)
+  seat.Transparency = 1
   seat.Parent = car
   const weld = new Instance("WeldConstraint", seat)
   weld.Part0 = chassis
   weld.Part1 = seat
   const wheels: HingeConstraint[] = []
-  for (const [x, z] of [[-3.6, -3], [3.6, -3], [-3.6, 3], [3.6, 3]]) {
+  for (const [x, z] of [[-3.2, -3], [3.2, -3], [-3.2, 3], [3.2, 3]]) {
     const wheel = new Instance("Part")
     wheel.Name = "Wheel"
     wheel.Shape = Enum.PartType.Cylinder
-    wheel.Size = new Vector3(1, 3, 3)
-    wheel.Position = new Vector3(-8 + x, 2, 20 + z)
-    wheel.Color = Color3.fromRGB(30, 30, 30)
+    wheel.Size = new Vector3(0.9, 2.8, 2.8)
+    wheel.Position = new Vector3(-3.5 + x, 2, 28 + z)
+    wheel.Transparency = 1
     wheel.Parent = car
     const a0 = new Instance("Attachment", chassis)
     a0.Position = new Vector3(x, -1, z)
@@ -287,17 +396,24 @@ export const place: EnginePlace = ({ Workspace, Lighting, Players, StarterGui, R
   car.Parent = Workspace
   seat.Changed.Connect((property) => {
     if (property !== "ThrottleFloat" && property !== "SteerFloat") return
-    // Forward is the seat's look (-Z), and a positive wheel speed rolls toward +Z. Steering turns one side faster.
     wheels.forEach((hinge, i) => {
       const left = i % 2 === 0
       hinge.AngularVelocity = -seat.ThrottleFloat * 16 + seat.SteerFloat * (left ? -6 : 6)
     })
   })
 
-  // Townsfolk: each walks to a place and on to the next, along a path around the houses.
+  // Townsfolk: animated 3D citizens strolling round the town square.
   const places = [new Vector3(-40, 0, -40), new Vector3(40, 0, -40), new Vector3(40, 0, 40), new Vector3(-40, 0, 40)]
   for (let i = 0; i < 2; i++) {
-    const walker = defaultCharacter(`Townsperson${i + 1}`)
+    const walker = modelCharacter(`Townsperson${i + 1}`, CITIZEN_URL, {
+      idle: "idle",
+      walk: "walk",
+      run: "sprint",
+      jump: "jump",
+      fall: "fall",
+      die: "die",
+      wave: "emote-yes",
+    })
     walker.PivotTo(new CFrame(places[i].X, 4, places[i].Z))
     walker.Parent = Workspace
     const humanoid = walker.FindFirstChildOfClass("Humanoid") as Humanoid
@@ -396,11 +512,12 @@ describe("the town", () => {
 ### `server/rooms/game_room.ts`
 
 ```ts
-import { engineRoom } from "../framework/index"
-import { place } from "../game/place"
+import { engineRoom, type GameShellConfig } from "../framework/index"
+import * as gamePlace from "../game/place"
 
 // The game's server: a room runs the place, and each player who opens the page joins it.
-sdk.registerRoom("game", engineRoom(place, { maxPlayers: 16 }))
+const { place, shell } = gamePlace as typeof gamePlace & { shell?: GameShellConfig }
+sdk.registerRoom("game", engineRoom(place, { maxPlayers: 16, shell }))
 ```
 
 ### `sitemills.json`
@@ -673,42 +790,52 @@ createRoot(document.getElementById("root")!).render(
 ```tsx
 import { useEffect, useRef, useState } from "react"
 import RAPIER from "@dimforge/rapier3d-compat"
-import { joinRoom } from "@/api/room-client"
-import { playOnline, playSolo } from "@/framework/index"
+import { createRoom, joinRoom, joinRoomByCode, listRooms } from "@/api/room-client"
+import { mountGameShell, type GameShellConfig } from "@/framework/index"
 import { client } from "../../server/game/client"
-import { place } from "../../server/game/place"
+import * as gamePlace from "../../server/game/place"
 
 /**
- * The game. Everyone who opens the page plays together in a room (server/rooms/game_room.ts runs the place there);
- * with ?solo in the address, it plays alone in the page. With ?debug, window.__game is the game's view (its engine,
- * localPlayer and, alone, the server's engine) for checking it from the browser console or a test.
+ * The game page: opens on the game shell overlay (title screen, modes, server browser, private room codes, how to play,
+ * and graphics/audio settings) backed by a live 3D preview. With `?solo` it plays alone in the page; with `?code=...`,
+ * `?room=...`, or `?autojoin` it enters a room immediately. With `?debug`, `window.__game` exposes the active game view.
  */
 export function GamePage() {
+  const container = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
   const [problem, setProblem] = useState<string | null>(null)
   useEffect(() => {
-    let stop: (() => void) | null = null
+    let dispose: (() => void) | null = null
     let gone = false
     void (async () => {
       await RAPIER.init()
-      if (gone || !canvas.current) return
-      const solo = new URLSearchParams(window.location.search).has("solo")
-      const game = solo
-        ? await playSolo({ canvas: canvas.current, physics: RAPIER, place, client })
-        : await playOnline({ canvas: canvas.current, physics: RAPIER, client, room: await joinRoom("game", { roomId: "auto" }) })
-      if (gone) game.stop()
-      else stop = () => game.stop()
-      if (new URLSearchParams(window.location.search).has("debug")) (window as unknown as { __game: unknown }).__game = game
+      if (gone || !canvas.current || !container.current) return
+      const shellConfig = (gamePlace as { shell?: GameShellConfig }).shell
+      const shell = await mountGameShell({
+        canvas: canvas.current,
+        container: container.current,
+        physics: RAPIER,
+        place: gamePlace.place,
+        client,
+        shell: shellConfig,
+        rooms: { joinRoom, listRooms, createRoom, joinRoomByCode },
+        onError: (msg) => setProblem(msg),
+        onGameChange: (g) => {
+          if (g) setProblem(null)
+        },
+      })
+      if (gone) shell.dispose()
+      else dispose = () => shell.dispose()
     })().catch((error: unknown) => setProblem(error instanceof Error ? error.message : String(error)))
     return () => {
       gone = true
-      stop?.()
+      dispose?.()
     }
   }, [])
   return (
-    <div className="relative h-svh w-full select-none overflow-hidden bg-black">
+    <div ref={container} className="relative h-svh w-full select-none overflow-hidden bg-black">
       <canvas ref={canvas} className="block h-full w-full" />
-      {problem && <div className="absolute inset-x-0 top-4 mx-auto w-fit max-w-[90%] rounded-lg bg-red-600 px-4 py-2 text-sm text-white">{problem}</div>}
+      {problem && <div className="absolute inset-x-0 top-4 z-30 mx-auto w-fit max-w-[90%] rounded-lg bg-red-600 px-4 py-2 text-sm text-white">{problem}</div>}
     </div>
   )
 }
