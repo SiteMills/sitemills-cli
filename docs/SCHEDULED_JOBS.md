@@ -15,7 +15,7 @@ Use jobs for nightly rollups, cleanup, scheduled emails, batched analytics, recu
 | ADVANCED | Available |
 | ULTRA | Available |
 
-- Jobs are registered per environment when you deploy (`sitemills-cli deploy <projectId> <branchId> <env>`). Each environment keeps its own job list, run history, and state.
+- Jobs are registered per environment when you deploy (`sitemills-cli deploy <projectId> <env>`). Each environment keeps its own job list, run history, and state.
 - If you remove a job from `contracts/jobs.json`, the next deploy disables it in that environment.
 - Pausing a job sticks across redeploys. A paused job stays paused until you resume it.
 

@@ -114,15 +114,15 @@ sitemills-cli export <app>             # 3. download it (by ID or site address) 
 cd <app>
 # 4. edit the files, then:
 sitemills-cli check                    #    compile your changes without saving anything
-sitemills-cli push                     #    upload your changes and update the branch preview
+sitemills-cli push                     #    upload your changes and update the Working Draft's preview
 sitemills-cli deploy prod              # 5. go live (or dev / staging)
 ```
 
 `export` downloads the app's **Working Draft** and links the folder to it by writing `.sitemills/project.json`. Every command run inside that folder (`check`, `push`, `commit`, `deploy`) uses the link, so you never type IDs. From outside the folder, pass its path instead: `sitemills-cli push ./my-app`.
 
 - The `.sitemills/` folder is never uploaded, and it holds no secrets (your login token lives in `~/.sitemills`), so it's fine to commit it to your own git repo.
-- Need a specific branch or folder name? `sitemills-cli export <projectId> <branchId> <outputDir>`.
-- Every folder command also accepts the IDs explicitly: `sitemills-cli push <projectId> <branchId> <dir>`.
+- Need a different folder name? `sitemills-cli export <projectId> <outputDir>`.
+- Every folder command also accepts the app's ID explicitly: `sitemills-cli push <projectId> [dir]`.
 - Wherever a command takes `<projectId>`, you can give the app's **site address** instead: the `<site-address>` in `https://<site-address>.sitemills.com`. `sitemills-cli list` shows both. Older apps have the same project ID and site address; newer apps have a separate project ID.
 
 ### Starting from your own code
@@ -136,9 +136,9 @@ sitemills-cli push
 ### Recompile without local changes
 
 ```bash
-sitemills-cli compile <projectId> --branch <branchId>
+sitemills-cli compile <projectId>
 ```
-*Compiles frontend JSX/TSX components (esbuild + Tailwind CSS) and backend TypeScript handlers into the SiteMills V8 isolate runtime.*
+*Compiles the app's Working Draft: frontend JSX/TSX components (esbuild + Tailwind CSS) and backend TypeScript handlers into the SiteMills V8 isolate runtime.*
 
 ---
 
@@ -270,19 +270,19 @@ sitemills-cli <command> [options]
   ```bash
   sitemills-cli export <projectId> [outputDir]              # Working Draft into ./<projectId> by default
   ```
-- **commit** (or **save-snapshot**): Quickly save a code snapshot to a branch without triggering cloud compilation or tests (~100ms). Only files that differ from the remote branch are uploaded, and remote files missing locally are deleted (pass `--no-prune` to keep them). Automatically saves metadata to `.sitemills/build.json` in the local directory and records the build in `~/.sitemills/builds.json`.
+- **commit** (or **save-snapshot**): Quickly save a code snapshot to the Working Draft without triggering cloud compilation or tests (~100ms). Only files that differ from the Working Draft are uploaded, and remote files missing locally are deleted (pass `--no-prune` to keep them). Automatically saves metadata to `.sitemills/build.json` in the local directory and records the build in `~/.sitemills/builds.json`.
   ```bash
   sitemills-cli commit [dir] [--message <message>] [--no-prune]
   ```
-- **check**: Compile your local changes against a branch **without saving or deploying anything**. Runs the same frontend and backend compilation as `push`, but creates no snapshot or version, leaves the live branch untouched, and runs no sandbox tests. Exits with code 1 if compilation fails. Use it for a fast edit-compile loop, then `push` once it passes.
+- **check**: Compile your local changes against the Working Draft **without saving or deploying anything**. Runs the same frontend and backend compilation as `push`, but creates no snapshot or version, leaves the Working Draft untouched, and runs no sandbox tests. Exits with code 1 if compilation fails. Use it for a fast edit-compile loop, then `push` once it passes.
   ```bash
   sitemills-cli check [dir] [--no-prune]
   ```
-- **push**: Push local updates to a specific branch on SiteMills. Only files that differ from the remote branch are uploaded (compared by content hash), and remote files missing locally are deleted (pass `--no-prune` to keep them). If nothing changed, push exits without recompiling. Performs pre-flight validation on `contracts/jobs.json`, `contracts/db.json`, TypeScript parameter typing, cloud bundle compilation, and automated tests. Pass `--skip-tests` to bypass testing.
+- **push**: Push local updates to the app's Working Draft on SiteMills. Only files that differ from the Working Draft are uploaded (compared by content hash), and remote files missing locally are deleted (pass `--no-prune` to keep them). If nothing changed, push exits without recompiling. Performs pre-flight validation on `contracts/jobs.json`, `contracts/db.json`, TypeScript parameter typing, cloud bundle compilation, and automated tests. Pass `--skip-tests` to bypass testing.
   ```bash
   sitemills-cli push [dir] [--message <message>] [--skip-tests] [--no-prune]
   ```
-- **compile**: Trigger manual project code compilation for a branch and inspect diagnostics. Pass `--skip-tests` to bypass testing.
+- **compile**: Recompile the app's Working Draft as it is on SiteMills and inspect diagnostics. Pass `--skip-tests` to bypass testing.
   ```bash
   sitemills-cli compile <projectId> [--skip-tests]
   ```
@@ -294,7 +294,7 @@ sitemills-cli <command> [options]
   ```bash
   sitemills-cli list-branches <projectId>
   ```
-- **version-history**: View the timeline of code versions and checkpoints for a specific branch.
+- **version-history**: View the timeline of the Working Draft's code versions and checkpoints.
   ```bash
   sitemills-cli version-history <projectId> [--limit <limit>]
   ```
@@ -575,3 +575,18 @@ How the CLI stays current depends on how you installed it:
 - `--write <file>`: Write a kit's assets to this file as `GAME_ASSETS` (`game-assets kit`).
 - `--overwrite`: Let `--write` replace an existing file.
 - `--template <id>`: The starter game for `game create` (list them with `game templates`).
+
+### RTS game starter
+
+Create an editable strategy game using the platform's reusable RTS engine:
+
+```sh
+sitemills-cli game templates --engine rts-engine
+sitemills-cli game create "My RTS" ./my-rts --engine rts-engine --template rts-sandbox
+cd my-rts
+sitemills-cli check
+sitemills-cli push
+sitemills-cli deploy dev
+```
+
+The starter has two 1,000-unit armies, multiplayer rooms and a local terrain editor. For local inspection before import, `game init rts-sandbox ./my-rts --engine rts-engine` writes only to a new or empty folder; import and deployment are separate steps. Edit game rules in `server/game` and UI/models in `src`. The framework folders are read-only platform code, pinned by `sitemills.json`. These commands use sitemills.com once the engine is released there. Use `--engine gameengine` for the instance/physics engine's templates.

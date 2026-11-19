@@ -17,12 +17,11 @@ SiteMills provides two administrative and automated data management commands for
 ### 2.1 Command Usage
 
 ```bash
-sitemills-cli data-op <projectId> <payloadJsonOrFile> [--branch <branchId>] [--env <environment>] [--mock-user <email>]
+sitemills-cli data-op <projectId> <payloadJsonOrFile> [--env <environment>] [--mock-user <email>]
 ```
 
 - `<payloadJsonOrFile>`: Can be passed as an inline JSON string or as a path to a `.json` file.
-- `--branch <branchId>`: Target a specific development branch data scope.
-- `--env <environment>`: Target `DEV`, `STAGING`, or `PROD` scope.
+- `--env <environment>`: Target `DEV`, `STAGING`, or `PROD` scope. Without it, `data-op` works on the Working Draft's data.
 
 ### 2.2 Supported Operations & Payload Schemas
 
@@ -136,8 +135,7 @@ sitemills-cli run-lua <projectId> <collection> <luaScriptFile> [options]
 - `--dry-run`: Previews the planned mutations without writing changes to the database.
 - `--limit <N>`: Maximum documents loaded into the Lua sandbox (1 to 200, default 200).
 - `--max-write-ops <N>`: Maximum writes allowed (1 to 200, default 200).
-- `--branch <branchId>`: Target branch data scope.
-- `--env <environment>`: Target environment (`DEV`, `STAGING`, or `PROD`).
+- `--env <environment>`: Target environment (`DEV`, `STAGING`, or `PROD`). Without it, the Working Draft's data.
 - `--mock-user <email>`: Mock user email (DEV/STAGING only).
 
 ### 3.2 The Lua Sandbox Environment

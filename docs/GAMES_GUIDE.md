@@ -1,13 +1,45 @@
 # Games Guide
 
-SiteMills projects can be games. There are two kinds:
+SiteMills projects can be games. Choose the foundation for your game:
 
+- **RTS games on `rts-engine`.** Reusable terrain, map editing, army movement, route planning, formations, instanced rendering and room networking. Start with two 1,000-unit armies, then add your own rules and artwork. See [the RTS quickstart](#rts-engine-quickstart).
 - **3D games on the SiteMills game engine.** A game here is a Roblox place written in TypeScript: Roblox's classes and services (parts, physics, constraints, characters, tools, GUIs, sounds, data stores, pathfinding), split between server and client as Roblox splits them. Everyone who opens the game plays together in a room, and it plays on phones. Use it for obbies, shooters, racing, strategy, tycoons, simulators and open worlds. This guide is mostly about these.
 - **2D games with Phaser**, in an ordinary SiteMills React project ([section 8](#8-2d-games-with-phaser)).
 
-Both can use the **SiteMills game asset library**: about 68,000 CC0 models, sprites, tiles, sound effects and fonts, plus hand-picked kits.
+Games can use the **SiteMills game asset library**: about 68,000 CC0 models, sprites, tiles, sound effects and fonts, plus hand-picked kits.
 
 Run `sitemills-cli help games` for a short version of this guide.
+
+## RTS engine quickstart
+
+These commands require the RTS release on sitemills.com. The CLI always connects to that platform. Use `deploy dev` to publish to your project’s DEV environment.
+
+```bash
+sitemills-cli login
+sitemills-cli game templates --engine rts-engine
+sitemills-cli game create "My RTS" ./my-rts --engine rts-engine --template rts-sandbox
+cd my-rts
+sitemills-cli check
+sitemills-cli push
+sitemills-cli deploy dev
+```
+
+`game create` creates and links the remote project. To inspect a template before creating a project, run `sitemills-cli game init rts-sandbox ./my-rts --engine rts-engine` instead. This writes to a new or empty folder; it does not import or deploy it. When ready, run `sitemills-cli import "My RTS" ./my-rts` against the same platform, then check, push and deploy from the linked folder.
+
+The RTS sandbox demonstrates authoritative movement for two independently owned 1,000-unit armies and local terrain editing. Use **Save map** and **Load map** to exchange map documents. Editing changes the local preview; put the saved document in `server/game/config.ts` and push to use it in multiplayer. The starter is a foundation for your rules, artwork and interface.
+
+| File | What to change |
+|---|---|
+| `server/game/config.ts` | Map settings and unit movement parameters |
+| `server/game/army.ts` | Army setup and game-owned simulation logic |
+| `server/rooms/rts.ts` | Admission, validated player commands, room updates and save/restore |
+| `src/view.ts`, `src/App.tsx` | Models, terrain display, selection, map editing and interface |
+| `server/framework/ENGINE.md` | Read the engine's APIs and extension examples |
+| `server/framework/`, `src/framework/` | Platform-supplied engine files; keep changes in game-owned files |
+
+The template pins framework `2.0` in `sitemills.json`. The existing instance/physics engine uses `1.0`; its `rts` template and this engine's `rts-sandbox` are separate starting points. Existing projects keep their selected pin. The sections below describe the instance/physics engine unless stated otherwise.
+
+For larger maps, choose terrain and navigation sample spacing separately from world extent. Keep planning incremental, reuse typed-array buffers, batch shared geometry and limit simultaneous sounds. Profile your actual game under its platform memory and CPU limits: the starter's unit count is not a promise that every combat or map workload will fit. Room reconnection can resume a retained room; it does not recreate one that has been destroyed.
 
 ---
 

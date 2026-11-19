@@ -58,7 +58,7 @@ Run `sitemills-cli login` to sign in through the browser. The CLI saves your tok
 |---------|-------------|
 | **projectId** | Permanent, opaque identifier for a SiteMills project (a UUID for new projects; older projects keep IDs like `my-portfolio-site`). Don't build URLs from it. |
 | **slug** | The project's site address: the site is served at `https://<slug>.sitemills.com`. Derived from the project name on import; the owner can change it later, so read it from the API instead of storing your own copy. |
-| **branchId** | UUID identifying a specific branch/version within a project. Each project has at least one branch. Returned in the import response. |
+| **branchId** | UUID of a branch within a project. The editable one is the **Working Draft**; export, manifest, check and push always work on it, so you never pass a branchId to them. Responses include it for reference. |
 | **files** | A `Map<String, String>` where keys are relative file paths (e.g. `app.tsx`, `styles.css`, `server/handlers.ts`) and values are file contents. |
 | **snapshot** | An immutable point-in-time capture of all project files. Every code mutation creates a new snapshot. |
 | **codeVersion** | A versioned entry in the code history chain, linked to a snapshot. Supports undo/redo. |
@@ -121,7 +121,7 @@ Content-Type: application/json
 }
 ```
 
-> **Save the `projectId` and `branchId`**: you'll need both for export and push. Use `siteUrl` (or `slug`) for the site's address, never the `projectId`.
+> **Save the `projectId`**: you'll need it for export and push. Use `siteUrl` (or `slug`) for the site's address, never the `projectId`.
 
 **Errors:**
 
@@ -135,22 +135,16 @@ Content-Type: application/json
 
 ### 2. Pull Project Code (Full Export)
 
-Download the complete source code for a project branch.
+Download the complete source code of the project's Working Draft.
 
 ```
-GET /api/v1/agent/projects/{projectId}/export?branchId={branchId}
+GET /api/v1/agent/projects/{projectId}/export
 ```
 
 **Headers:**
 ```
 Authorization: Bearer <your_token>
 ```
-
-**Query Parameters:**
-
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `branchId` | No | Specific branch to export. If omitted, uses the first/default branch. |
 
 **Response: `200 OK`**
 ```json
@@ -173,7 +167,7 @@ Authorization: Bearer <your_token>
 - Internal/framework files (`api/*`, `backend-store.js`, `*.js.map`, `*.d.ts`) are automatically excluded.
 - The `files` map is keyed by **relative path** from the project root.
 - Asset files (images, fonts) under `assets/` are returned as data URIs.
-- The `branchId` is included in the response for use in push requests.
+- The `branchId` in the response identifies the Working Draft. Push doesn't need it.
 
 **Errors:**
 
@@ -201,7 +195,6 @@ Content-Type: application/json
 **Request Body:**
 ```json
 {
-  "branchId": "a1b2c3d4-...",
   "files": {
     "app.tsx": "export default function App() {\n// updated component\n...",
     "styles.css": "/* updated styles */\n..."
@@ -215,7 +208,6 @@ Content-Type: application/json
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `branchId` | string | **Yes** | Target branch to update (from import or export response). |
 | `files` | `Map<String, String>` | **Yes**, unless `deletedFiles` is non-empty | Changed/new file paths → contents. Only include files that were modified or added. |
 | `deletedFiles` | `string[]` | No | File paths to remove from the project. A request may contain only deletions. |
 | `message` | string | No | Description of the change (stored in version history). |
@@ -265,7 +257,7 @@ Content-Type: application/json
 
 | Code | Reason |
 |------|--------|
-| `400` | Both `files` and `deletedFiles` are empty, or missing branchId |
+| `400` | Both `files` and `deletedFiles` are empty |
 | `401` | Missing, invalid, or expired token |
 | `403` | You do not have write access to this project |
 | `404` | Project not found |
@@ -277,10 +269,10 @@ Content-Type: application/json
 
 ### 3a. File Manifest (What Changed?)
 
-Returns a SHA-256 hash for every file on the branch, without the file contents. Compare it with hashes of your local files to find out which files to send to push, and which remote files no longer exist locally, without downloading the whole project.
+Returns a SHA-256 hash for every file on the Working Draft, without the file contents. Compare it with hashes of your local files to find out which files to send to push, and which remote files no longer exist locally, without downloading the whole project.
 
 ```
-GET /api/v1/agent/projects/{projectId}/manifest?branchId={branchId}
+GET /api/v1/agent/projects/{projectId}/manifest
 ```
 
 **Response: `200 OK`**
@@ -306,7 +298,7 @@ Compiles your changes against the current branch state **without saving or deplo
 POST /api/v1/agent/projects/{projectId}/check
 ```
 
-**Request Body:** same shape as push (`branchId`, `files`, `deletedFiles`). Both maps may be empty to check the current branch state as is.
+**Request Body:** same shape as push (`files`, `deletedFiles`). Both may be empty to check the Working Draft as is.
 
 **Response: `200 OK`**
 ```json
@@ -328,7 +320,7 @@ POST /api/v1/agent/projects/{projectId}/check
 If your local state becomes stale or out of sync, simply call the **Pull** endpoint again to get the latest state:
 
 ```
-GET /api/v1/agent/projects/{projectId}/export?branchId={branchId}
+GET /api/v1/agent/projects/{projectId}/export
 ```
 
 This is the same as endpoint #2. The response always reflects the **current HEAD** snapshot for the branch.
@@ -362,17 +354,16 @@ IMPORT_RESPONSE=$(curl -s -X POST \
     }
   }')
 
-# Extract projectId and branchId for later use
+# Extract projectId for later use
 export PROJECT_ID=$(echo "$IMPORT_RESPONSE" | jq -r '.projectId')
-export BRANCH_ID=$(echo "$IMPORT_RESPONSE" | jq -r '.branchId')
-echo "Created project: $PROJECT_ID, branch: $BRANCH_ID"
+echo "Created project: $PROJECT_ID"
 ```
 
 ### 2. Pull Full Project (for reference)
 
 ```bash
 curl -s -H "Authorization: Bearer $SM_TOKEN" \
-  "$SM_BASE/api/v1/agent/projects/$PROJECT_ID/export?branchId=$BRANCH_ID" \
+  "$SM_BASE/api/v1/agent/projects/$PROJECT_ID/export" \
   > /tmp/sitemills-project/project.json
 
 # Extract files to disk
@@ -398,7 +389,6 @@ curl -s -X POST \
   -H "Content-Type: application/json" \
   "$SM_BASE/api/v1/agent/projects/$PROJECT_ID/push" \
   -d "{
-    \"branchId\": \"$BRANCH_ID\",
     \"files\": {
       \"app.tsx\": \"export default function App() { return <h1>Updated!</h1>; }\"
     },
@@ -415,7 +405,7 @@ curl -s -X POST \
 ```bash
 # If state is out of sync, pull the full project again
 curl -s -H "Authorization: Bearer $SM_TOKEN" \
-  "$SM_BASE/api/v1/agent/projects/$PROJECT_ID/export?branchId=$BRANCH_ID" \
+  "$SM_BASE/api/v1/agent/projects/$PROJECT_ID/export" \
   > /tmp/sitemills-project/project.json
 ```
 
@@ -504,7 +494,7 @@ Use these for precise error correction without guessing.
 | `400` | Bad request (missing fields, invalid data) | Fix the request |
 | `401` | Missing, invalid, or expired token | Run `sitemills-cli login` and retry with the new token |
 | `403` | Forbidden — no access to this project | Ask the project owner for the Developer role |
-| `404` | Project or branch not found | Check projectId/branchId |
+| `404` | Project not found | Check projectId |
 | `409` | Conflict (workflow running, or project exists) | Wait and retry, or refresh |
 | `429` | Too many requests | Wait, then retry with backoff |
 | `500` | Server error | Retry with backoff |
@@ -520,7 +510,6 @@ Use these for precise error correction without guessing.
 5. **Read structured errors.** Use `structuredErrors` rather than parsing the human-readable `message` string.
 6. **Use the `message` field** in push requests to document what changed — this appears in version history.
 7. **Handle 409 gracefully.** If you get a conflict, wait for the running workflow to finish, then refresh and retry.
-8. **Save your branchId.** It's returned in import and export responses — you need it for every push.
 
 ---
 
@@ -529,11 +518,11 @@ Use these for precise error correction without guessing.
 | Action | Method | Endpoint |
 |--------|--------|----------|
 | Create project | `POST` | `/api/v1/agent/projects/import` |
-| Pull full project | `GET` | `/api/v1/agent/projects/{id}/export?branchId=...` |
-| File hashes (manifest) | `GET` | `/api/v1/agent/projects/{id}/manifest?branchId=...` |
+| Pull full project | `GET` | `/api/v1/agent/projects/{id}/export` |
+| File hashes (manifest) | `GET` | `/api/v1/agent/projects/{id}/manifest` |
 | Compile-only check | `POST` | `/api/v1/agent/projects/{id}/check` |
 | Push changed files | `POST` | `/api/v1/agent/projects/{id}/push` |
-| Refresh (re-pull) | `GET` | `/api/v1/agent/projects/{id}/export?branchId=...` |
+| Refresh (re-pull) | `GET` | `/api/v1/agent/projects/{id}/export` |
 | Get Env Vars | `GET` | `/api/v1/agent/projects/{id}/env?environment=...` |
 | Set Env Var | `PUT` | `/api/v1/agent/projects/{id}/env/{name}` |
 | Get Preview Token | `GET` | `/api/v1/agent/projects/{id}/preview-token` |

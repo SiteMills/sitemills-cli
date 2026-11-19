@@ -133,9 +133,6 @@ To inspect full backend handler error logs in real-time from the CLI:
 ```bash
 # View all recent error logs for your project in an environment
 sitemills-cli logs <projectId> --env DEV --level ERROR --limit 50
-
-# View logs for a specific branch
-sitemills-cli logs <projectId> --branch feature-branch --level ERROR
 ```
 
 
