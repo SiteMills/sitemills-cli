@@ -57,6 +57,7 @@ Run `sitemills-cli login` to sign in through the browser. The CLI saves your tok
 | Concept | Description |
 |---------|-------------|
 | **projectId** | Permanent, opaque identifier for a SiteMills project (a UUID for new projects; older projects keep IDs like `my-portfolio-site`). Don't build URLs from it. |
+| **name** | The project's display name, shown in the dashboard and the marketplace: 3 to 50 letters, numbers, spaces, hyphens or underscores, and it doesn't have to be unique. Renaming (`sitemills-cli set-name` or `PUT /api/v1/dashboard/projects/{projectId}/name`) never changes the projectId, site address, deployments or media links. |
 | **slug** | The project's site address: the site is served at `https://<slug>.sitemills.com`. Derived from the project name on import; the owner can change it later, so read it from the API instead of storing your own copy. |
 | **branchId** | UUID of a branch within a project. The editable one is the **Working Draft**; export, manifest, check and push always work on it, so you never pass a branchId to them. Responses include it for reference. |
 | **files** | A `Map<String, String>` where keys are relative file paths (e.g. `app.tsx`, `styles.css`, `server/handlers.ts`) and values are file contents. |
@@ -532,8 +533,23 @@ Use these for precise error correction without guessing.
 | Get AI Workflows | `GET` | `/api/v1/agent/projects/{id}/ai-workflows` |
 | Get Metrics | `GET` | `/api/v1/agent/projects/{id}/metrics?eventType=...&from=...&to=...` |
 | Get Orders | `GET` | `/api/v1/agent/projects/{id}/orders` |
+| Rename project | `PUT` | `/api/v1/dashboard/projects/{id}/name` |
 
 **All requests require:** `Authorization: Bearer <your_token>`
+
+---
+
+## Renaming a Project
+
+**`PUT /api/v1/dashboard/projects/{projectId}/name`** with body `{ "name": "Bannerhold Chronicles" }` changes the project's display name and returns `{ "projectId": "...", "name": "Bannerhold Chronicles" }`. It needs the owner or developer role on the project. The CLI command is `sitemills-cli set-name <projectId> <name>`.
+
+| Status | Meaning |
+|--------|---------|
+| `400` | The name is blank, shorter than 3 or longer than 50 characters, or uses other characters than letters, numbers, spaces, hyphens and underscores |
+| `401` | Not signed in, or the token expired |
+| `403` | You can view the project but not change it |
+
+Renaming never changes the site address. Passing `projectName` to the import endpoint only names a newly created project. Only the project owner can change the site address, for example in the project's **Settings > General > Site Address**. CLI tokens can't call the site-address endpoints. `sitemills-cli address <projectId>` prints the current address and that Settings link.
 
 ---
 

@@ -257,7 +257,7 @@ sitemills-cli <command> [options]
   ```bash
   sitemills-cli info <projectId>
   ```
-- **import**: Import a local project directory into a new SiteMills project.
+- **import**: Import a local project directory into a new SiteMills project. `<projectName>` names the new project; to rename an existing one, use `set-name`.
   ```bash
   sitemills-cli import <projectName> <inputDir>
   ```
@@ -429,6 +429,14 @@ Manage background and scheduled jobs defined in `contracts/jobs.json` and implem
 - **set-visibility**: Change project visibility to PRIVATE, UNLISTED, or PUBLIC, with optional SEO indexing enablement.
   ```bash
   sitemills-cli set-visibility <projectId> <visibility> [--indexable | --no-indexable]
+  ```
+- **set-name**: Rename a project (its display name, 3 to 50 letters, numbers, spaces, hyphens or underscores). The project ID, site address, deployments and media links stay the same. Needs the owner or developer role.
+  ```bash
+  sitemills-cli set-name <projectId> <name> [--json]
+  ```
+- **address**: Show a project's site address and the Settings link where the project owner can change it. The CLI can't change a site address.
+  ```bash
+  sitemills-cli address <projectId>
   ```
 - **set-description**: Update the public display description of the project.
   ```bash
