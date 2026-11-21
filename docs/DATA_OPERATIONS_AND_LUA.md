@@ -17,7 +17,7 @@ SiteMills provides two administrative and automated data management commands for
 ### 2.1 Command Usage
 
 ```bash
-sitemills-cli data-op <projectId> <payloadJsonOrFile> [--env <environment>] [--mock-user <email>]
+sitemills-cli data-op <projectId> <payloadJsonOrFile> [--env <environment>]
 ```
 
 - `<payloadJsonOrFile>`: Can be passed as an inline JSON string or as a path to a `.json` file.
@@ -136,7 +136,6 @@ sitemills-cli run-lua <projectId> <collection> <luaScriptFile> [options]
 - `--limit <N>`: Maximum documents loaded into the Lua sandbox (1 to 200, default 200).
 - `--max-write-ops <N>`: Maximum writes allowed (1 to 200, default 200).
 - `--env <environment>`: Target environment (`DEV`, `STAGING`, or `PROD`). Without it, the Working Draft's data.
-- `--mock-user <email>`: Mock user email (DEV/STAGING only).
 
 ### 3.2 The Lua Sandbox Environment
 
@@ -246,7 +245,6 @@ sitemills-cli run-lua my-project Users scripts/backfill_user_slugs.lua --filter 
 
 | Flag | Valid Syntax | Environment Restrictions | Description |
 |---|---|---|---|
-| `--mock-user <email>` | Valid email address (e.g. `--mock-user dev@example.com`) | **DEV and STAGING only. Strictly forbidden & ignored in PROD.** | Injects `X-SiteMills-Mock-User` header to simulate requests as another user for role testing. |
 | `--filter <json>` | Valid JSON MongoDB filter string (e.g. `'{"status":"active"}'`) | All environments | Queries documents matching the filter. |
 | `--max-write-ops <N>` | Integer `1` to `200` | All environments | Sets the maximum write operations budget. |
 | `--limit <N>` | Integer `1` to `200` | All environments | Sets the maximum documents loaded into the sandbox. |
