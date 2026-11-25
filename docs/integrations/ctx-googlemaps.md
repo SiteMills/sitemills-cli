@@ -141,6 +141,7 @@ Implement a utility or component in your views to load the SDK script dynamicall
 ```typescript
 // src/components/LocationMapComponent.tsx
 import { useEffect, useRef, useState } from 'react';
+import { callBackend } from '@/services/api-client';
 
 export function LocationMapComponent() {
   const mapRef = useRef<HTMLDivElement>(null);
@@ -148,10 +149,9 @@ export function LocationMapComponent() {
 
   useEffect(() => {
     // 1. Fetch key from backend
-    fetch('/api/googlemaps-config')
-      .then(res => res.json())
+    callBackend<{ apiKey: string }>('getGoogleMapsConfig')
       .then(config => {
-        if (!config.apiKey) {
+        if (!config?.apiKey) {
             console.error('Google Maps API key not configured.');
             return;
         }
@@ -168,6 +168,9 @@ export function LocationMapComponent() {
         script.defer = true;
         script.onload = () => setSdkLoaded(true);
         document.head.appendChild(script);
+      })
+      .catch(err => {
+        console.error('Failed to load Google Maps config:', err);
       });
   }, []);
 

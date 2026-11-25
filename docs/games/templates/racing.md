@@ -1,6 +1,6 @@
 # Starter game: Racing
 
-A kart race on a ring road: each player starts in their own kart on the grid, a countdown, three laps, places as it goes, and each player's best lap kept between visits. The kart is driven by the client script on its driver's page (speed and turning from the seat's throttle and steering), and the server counts laps by gates passed in order. The start of any racing or driving game.
+A kart race on a ring road: each player starts in their own kart on the grid, a countdown, three laps, places as it goes, and each player's best lap kept between visits. Each kart is a car of the engine's own (a VehicleSeat and four VehicleWheels under a race car model: suspension, grip, gears, Shift for the handbrake), held on the grid until GO, and the server counts laps by gates passed in order. The start of any racing or driving game.
 
 Template `racing`, on SiteMills game framework 1.0 (release 1.0.0). [The Games Guide](../../GAMES_GUIDE.md) says how to make it your game.
 
@@ -126,62 +126,28 @@ The engine isn't on this page: `sitemills.json` pins game framework 1.0, and the
 ### `server/game/client.ts`
 
 ```ts
-// The game's client script: it drives this player's kart, keeps the camera behind it, and fills in the HUD.
-// - Driving: each step, the kart's speed moves toward what the throttle asks (quicker when braking), and it turns by
-//   the steering (not when it's standing still, and the other way in reverse). The kart is this client's to move
-//   (its driver's client owns it), so the keys are felt at once; the server only counts laps.
-// - It rides just over the ground (a ray down finds the ground under it), so nothing drags on it and it follows a
-//   hill; with no ground under it, it falls.
-// - It holds still until the race starts, and after it has finished.
-import { CFrame, Enum, RaycastParams, Vector3, type BasePart, type ClientScript, type Model, type RemoteEvent, type TextButton, type TextLabel, type VehicleSeat } from "../framework/index"
-import { LAPS, RIDE } from "./place"
-
-/** Studs a second flat out and in reverse; how fast it gains speed, brakes, and slows by itself; radians a second it turns. */
-const TOP = 70
-const REVERSE = 20
-const GAIN = 28
-const BRAKE = 70
-const COAST = 14
-const TURN = 1.9
+// The game's client script: the handbrake, the camera behind this player's kart, and the HUD.
+// - The kart drives itself from its seat (a car of the engine's own): nothing here moves it. Shift is its handbrake
+//   (the back swings round: a drift).
+import { CFrame, Enum, Vector3, VehicleSeat, type BasePart, type ClientScript, type Model, type RemoteEvent, type TextButton, type TextLabel } from "../framework/index"
+import { LAPS } from "./place"
 
 export const client: ClientScript = ({ player, Workspace, ReplicatedStorage, RunService, UserInputService, CollectionService }) => {
   const camera = Workspace.CurrentCamera
   const reset = ReplicatedStorage.FindFirstChild("Reset") as RemoteEvent
   const myKart = () => CollectionService.GetTagged("Kart").find((k) => k.GetAttribute("Owner") === player.UserId) as Model | undefined
-  let speed = 0
-  const under = new RaycastParams()
+  const mySeat = () => myKart()?.FindFirstChildOfClass("VehicleSeat") as VehicleSeat | undefined
 
-  RunService.Heartbeat.Connect((dt: number) => {
-    const kart = myKart()
-    const chassis = kart?.PrimaryPart
-    const seat = kart?.FindFirstChildOfClass("VehicleSeat") as VehicleSeat | undefined
-    const humanoid = player.Character?.FindFirstChildOfClass("Humanoid")
-    if (!chassis || !seat || !humanoid || humanoid.SeatPart !== seat) {
-      speed = 0
-      return
-    }
-    const racing = Workspace.GetAttribute("Phase") === "Racing" && player.GetAttribute("Finished") === undefined
-    const look = chassis.CFrame.LookVector
-    const ahead = new Vector3(look.X, 0, look.Z)
-    if (ahead.Magnitude < 0.01) return
-    const forward = ahead.Unit
-    // What a wall or another kart took off its speed.
-    const velocity = chassis.AssemblyLinearVelocity
-    const actual = velocity.X * forward.X + velocity.Z * forward.Z
-    if (Math.abs(actual) < Math.abs(speed) - 6) speed = actual
-    const throttle = racing ? seat.ThrottleFloat : 0
-    const target = throttle > 0 ? TOP * throttle : REVERSE * throttle
-    // Toward the speed asked for: braking when that's against the way it's going, coasting with no throttle.
-    const rate = throttle === 0 ? COAST : speed !== 0 && Math.sign(target - speed) !== Math.sign(speed) ? BRAKE : GAIN
-    speed += Math.max(-rate * dt, Math.min(rate * dt, target - speed))
-    const steer = racing ? seat.SteerFloat : 0
-    const turn = -steer * TURN * Math.min(1, Math.abs(speed) / 20) * (speed < 0 ? -1 : 1)
-    // Up or down to its ride height over the ground under it; falling, if there's none within reach.
-    under.FilterDescendantsInstances = player.Character ? [kart as Model, player.Character] : [kart as Model]
-    const ground = Workspace.Raycast(chassis.Position, new Vector3(0, -4, 0), under)
-    const rise = ground ? Math.max(-30, Math.min(30, (ground.Position.Y + RIDE - chassis.Position.Y) * 12)) : velocity.Y - Workspace.Gravity * dt
-    chassis.AssemblyLinearVelocity = new Vector3(forward.X * speed, rise, forward.Z * speed)
-    chassis.AssemblyAngularVelocity = new Vector3(0, turn, 0)
+  // The handbrake: Shift, while held.
+  const handbrake = (on: boolean) => {
+    const seat = player.Character?.FindFirstChildOfClass("Humanoid")?.SeatPart
+    if (seat instanceof VehicleSeat) seat.Handbrake = on
+  }
+  UserInputService.InputBegan.Connect((input, processed) => {
+    if (!processed && input.KeyCode === Enum.KeyCode.LeftShift) handbrake(true)
+  })
+  UserInputService.InputEnded.Connect((input) => {
+    if (input.KeyCode === Enum.KeyCode.LeftShift) handbrake(false)
   })
 
   // "Back on track": the button, or R.
@@ -238,7 +204,7 @@ export const client: ClientScript = ({ player, Workspace, ReplicatedStorage, Run
     text("Time", `Time ${lapClock.toFixed(1)}`)
     text("Best", best === undefined ? "Best -" : `Best ${best.toFixed(2)}`)
     text("Place", `${ordinal((player.GetAttribute("Place") as number | undefined) ?? 1)} of ${karts}`)
-    text("Speed", `${Math.round(Math.abs(speed))}`)
+    text("Speed", `${Math.round(Math.abs(mySeat()?.ForwardSpeed ?? 0))}`)
     const count = (Workspace.GetAttribute("Count") as number | undefined) ?? 0
     const words =
       finished !== undefined ? `${ordinal((player.GetAttribute("Place") as number | undefined) ?? 1)}  ${finished.toFixed(2)}`
@@ -262,8 +228,9 @@ export const client: ClientScript = ({ player, Workspace, ReplicatedStorage, Run
 // Racing: race cars on an asphalt circuit. Three laps, a countdown, live places, and each player's best lap kept.
 // - Each player gets a 3D race car on the grid and starts in its seat (a VehicleSeat). W and S are its throttle and A
 //   and D its steering, whichever way the camera looks.
-// - The car is driven by the client script on its driver's own page: a player's client moves the kart they sit in,
-//   so it answers the keys at once. Each step it sets the kart's speed and turn from the seat's throttle and steering.
+// - Each kart is a car of the engine's own (a VehicleSeat and four VehicleWheels): suspension, grip, gears, brakes,
+//   driven by its driver's page at once, with no script. Shift is the handbrake (the client script binds it).
+// - Karts are anchored on the grid until GO, so nobody jumps the start.
 // - The server decides what counts. A lap is the four gates round the road in order, and no quicker than MIN_LAP.
 // - Rounds: waiting, the grid and a countdown, the race (LAPS laps, or RACE_SECONDS at most), the results, and again.
 import {
@@ -327,11 +294,29 @@ export const shell: GameShellConfig = {
     "Hold W / S (or thumbstick up/down) for throttle and reverse, and A / D to steer.",
     "Cross all four track sectors in order for each lap to count — tap Back on track if you spin off line.",
   ],
+  controls: [
+    { keys: "W / S", action: "Throttle / Brake & Reverse" },
+    { keys: "A / D", action: "Steer" },
+    { keys: "Shift", action: "Handbrake drift" },
+    { keys: "R", action: "Back on track" },
+    { keys: "M", action: "Expand circuit map" },
+    { keys: "Tab", action: "Race standings" },
+    { keys: "Esc", action: "Pause & Settings" },
+  ],
+  minimap: { range: 200, players: "all" },
 }
 
 export const LAPS = 3
-/** How high a kart's middle rides over the ground (its client script holds it there, so nothing drags on it). */
+/** How high a kart's middle is put over the road (its wheels touch it there; it settles a little onto its springs). */
 export const RIDE = 0.85
+/** Each wheel's radius, and where it is on the car (the model's wheels: invisible ones carry it). */
+const WHEEL_RADIUS = 0.8
+const WHEELS = [
+  { x: -2.1, z: -3.1, front: true },
+  { x: 2.1, z: -3.1, front: true },
+  { x: -2.1, z: 3.1, front: false },
+  { x: 2.1, z: 3.1, front: false },
+]
 /** The top of the road. */
 const ROAD_TOP = 0.2
 const WAIT_SECONDS = 4
@@ -482,7 +467,7 @@ export const place: EnginePlace = ({ Workspace, Players, Lighting, ReplicatedSto
   // Karts ---------------------------------------------------------------------------------------------------------------
 
   const gridCFrame = (slot: number) => CFrame.lookAt(new Vector3(GRID[slot].X, ROAD_TOP + RIDE, GRID[slot].Z), new Vector3(GRID[slot].X + 1, ROAD_TOP + RIDE, GRID[slot].Z))
-  /** A race car: an invisible physics chassis, a seat, and a 3D race car model welded on facing forward. */
+  /** A race car: an invisible chassis, a seat, four invisible wheels that carry it, and a 3D race car model welded on. */
   const makeKart = (player: Player, slot: number) => {
     const kart = new Instance("Model")
     kart.Name = "Kart"
@@ -493,6 +478,8 @@ export const place: EnginePlace = ({ Workspace, Players, Lighting, ReplicatedSto
     chassis.Color = COLOURS[slot]
     chassis.Transparency = 1
     chassis.CFrame = frame
+    // Held on the grid unless a race is on (someone joining mid-race drives at once).
+    chassis.Anchored = phase !== "Racing"
     chassis.Parent = kart
 
     const carMesh = new Instance("MeshPart")
@@ -512,10 +499,31 @@ export const place: EnginePlace = ({ Workspace, Players, Lighting, ReplicatedSto
     const seat = new Instance("VehicleSeat")
     seat.CFrame = frame.mul(new CFrame(0, 0.75, 0.6))
     seat.Transparency = 1
+    // Tuned for the circuit: brisk, forgiving (Assist 1 is arcade; lower it for a sim).
+    seat.MaxSpeed = 75
+    seat.Torque = 11
+    seat.TurnSpeed = 1.5
     seat.Parent = kart
     const hold = new Instance("WeldConstraint", seat)
     hold.Part0 = chassis
     hold.Part1 = seat
+
+    for (const w of WHEELS) {
+      const wheel = new Instance("Part")
+      wheel.Name = w.front ? "FrontWheel" : "RearWheel"
+      wheel.Shape = Enum.PartType.Cylinder
+      wheel.Size = new Vector3(0.8, WHEEL_RADIUS * 2, WHEEL_RADIUS * 2)
+      wheel.Transparency = 1
+      wheel.CFrame = frame.mul(new CFrame(w.x, WHEEL_RADIUS - RIDE, w.z))
+      wheel.Parent = kart
+      const spec = new Instance("VehicleWheel")
+      spec.Steer = w.front
+      spec.SuspensionLength = 0.6
+      spec.Parent = wheel
+      const axle = new Instance("WeldConstraint", wheel)
+      axle.Part0 = chassis
+      axle.Part1 = wheel
+    }
 
     kart.PrimaryPart = chassis
     kart.SetAttribute("Owner", player.UserId)
@@ -535,6 +543,10 @@ export const place: EnginePlace = ({ Workspace, Players, Lighting, ReplicatedSto
     chassis.AssemblyLinearVelocity = Vector3.zero
     chassis.AssemblyAngularVelocity = Vector3.zero
     seatIn(racer)
+  }
+  /** On the grid the karts are held (anchored); at GO they're let go (and their drivers' again). */
+  const hold = (held: boolean) => {
+    for (const racer of racers.values()) (racer.kart.PrimaryPart as BasePart).Anchored = held
   }
 
   Players.PlayerAdded.Connect(async (player) => {
@@ -633,6 +645,9 @@ export const place: EnginePlace = ({ Workspace, Players, Lighting, ReplicatedSto
   const round = async () => {
     for (;;) {
       setPhase("Waiting")
+      // Back to the grid, held there until GO.
+      for (const racer of racers.values()) putKart(racer, gridCFrame(racer.slot))
+      hold(true)
       while (racers.size === 0) await task.wait(0.5)
       await task.wait(WAIT_SECONDS)
       for (const racer of racers.values()) {
@@ -641,6 +656,7 @@ export const place: EnginePlace = ({ Workspace, Players, Lighting, ReplicatedSto
         racer.player.SetAttribute("Lap", 0)
         putKart(racer, gridCFrame(racer.slot))
       }
+      hold(true)
       setPhase("Countdown")
       beep.Play()
       for (let count = COUNT_SECONDS; count > 0; count--) {
@@ -655,6 +671,7 @@ export const place: EnginePlace = ({ Workspace, Players, Lighting, ReplicatedSto
         racer.next = 1
         racer.lapStart = raceStart
       }
+      hold(false)
       setPhase("Racing")
       while (now() - raceStart < RACE_SECONDS && racers.size > 0 && [...racers.values()].some((r) => r.finished === undefined)) {
         places().forEach((racer, i) => racer.player.SetAttribute("Place", i + 1))
@@ -738,7 +755,7 @@ const kartOf = (t: Game, userId: number) => t.services.CollectionService.GetTagg
 const phase = (t: Game) => t.services.Workspace.GetAttribute("Phase")
 
 describe("the racing game", () => {
-  test("a player starts in their kart on the grid; it holds through the countdown, and drives at GO", async () => {
+  test("a player starts in their kart on the grid; it's held through the countdown, and drives at GO (theirs to drive)", async () => {
     const t = await testGame(place, { client })
     const ana = t.join("Ana")
     await t.wait(1.5)
@@ -746,7 +763,6 @@ describe("the racing game", () => {
     const chassis = kart.PrimaryPart as BasePart
     const humanoid = ana.serverPlayer.Character?.FindFirstChildOfClass("Humanoid") as Humanoid
     expect(humanoid.SeatPart === kart.FindFirstChildOfClass("VehicleSeat")).toBe(true)
-    expect(chassis.GetNetworkOwner() === ana.serverPlayer).toBe(true)
     // Throttle held from the start (the kart faces +X on the grid): nothing happens until the race is on.
     ana.input(new Vector3(1, 0, 0))
     const from = chassis.Position
@@ -755,8 +771,9 @@ describe("the racing game", () => {
     expect(chassis.Position.sub(from).Magnitude).toBeLessThan(1)
     while (phase(t) !== "Racing") await t.wait(0.25)
     await t.wait(2.5)
-    // Away down the straight, and the server has it where its driver's client put it.
+    // Away down the straight, driven by its driver's client, and the server has it where that client put it.
     expect(chassis.Position.X - from.X > 35).toBe(true)
+    expect(chassis.GetNetworkOwner() === ana.serverPlayer).toBe(true)
     const mine = (ana.services.CollectionService.GetTagged("Kart")[0] as Model).PrimaryPart as BasePart
     expect(mine.Position.sub(chassis.Position).Magnitude).toBeLessThan(6)
     const speed = ana.player?.FindFirstChild("PlayerGui")?.FindFirstChild("Hud")?.FindFirstChild("Speed") as TextLabel
@@ -768,14 +785,15 @@ describe("the racing game", () => {
     const ana = t.join("Ana")
     while (phase(t) !== "Racing") await t.wait(0.25)
     const chassis = kartOf(t, ana.serverPlayer.UserId).PrimaryPart as BasePart
-    // A driver: toward each corner of the road in turn, steering by how far off it's pointing and easing off the
-    // throttle when that's a lot (a kart turns wide at full speed). Its keys are the kart's own throttle and steering.
-    const corners = [new Vector3(132, 0, 82), new Vector3(132, 0, -82), new Vector3(-132, 0, -82), new Vector3(-132, 0, 82)]
+    // A driver: toward each point round the middle of the road in turn, steering by how far off it's pointing and
+    // easing off the throttle when that's a lot (a car turns wide at full speed). Its keys are the kart's own controls.
+    // The middle of the road all round: each corner and each straight's middle (never across the island).
+    const corners = [new Vector3(66, 0, 82), new Vector3(132, 0, 82), new Vector3(132, 0, 0), new Vector3(132, 0, -82), new Vector3(0, 0, -82), new Vector3(-132, 0, -82), new Vector3(-132, 0, 0), new Vector3(-132, 0, 82), new Vector3(-66, 0, 82)]
     let corner = 0
     let waited = 0
     while (((ana.serverPlayer.GetAttribute("Lap") as number | undefined) ?? 0) < 1 && waited < 40) {
       let to = corners[corner].sub(chassis.Position)
-      if (Math.hypot(to.X, to.Z) < 55) {
+      if (Math.hypot(to.X, to.Z) < 30) {
         corner = (corner + 1) % corners.length
         to = corners[corner].sub(chassis.Position)
       }
@@ -1094,14 +1112,15 @@ import * as gamePlace from "../../server/game/place"
 export function GamePage() {
   const container = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
+  const [booting, setBooting] = useState(true)
   const [problem, setProblem] = useState<string | null>(null)
+  const shellConfig = (gamePlace as { shell?: GameShellConfig }).shell
   useEffect(() => {
     let dispose: (() => void) | null = null
     let gone = false
     void (async () => {
       await RAPIER.init()
       if (gone || !canvas.current || !container.current) return
-      const shellConfig = (gamePlace as { shell?: GameShellConfig }).shell
       const shell = await mountGameShell({
         canvas: canvas.current,
         container: container.current,
@@ -1116,17 +1135,35 @@ export function GamePage() {
         },
       })
       if (gone) shell.dispose()
-      else dispose = () => shell.dispose()
-    })().catch((error: unknown) => setProblem(error instanceof Error ? error.message : String(error)))
+      else {
+        dispose = () => shell.dispose()
+        setBooting(false)
+      }
+    })().catch((error: unknown) => {
+      setBooting(false)
+      setProblem(error instanceof Error ? error.message : String(error))
+    })
     return () => {
       gone = true
       dispose?.()
     }
   }, [])
   return (
-    <div ref={container} className="relative h-svh w-full select-none overflow-hidden bg-black">
+    <div ref={container} className="relative h-svh w-full select-none overflow-hidden bg-[#090d18]">
       <canvas ref={canvas} className="block h-full w-full" />
-      {problem && <div className="absolute inset-x-0 top-4 z-30 mx-auto w-fit max-w-[90%] rounded-lg bg-red-600 px-4 py-2 text-sm text-white">{problem}</div>}
+      {booting && !problem && (
+        <div className="pointer-events-none absolute inset-0 z-40 flex flex-col items-center justify-center bg-[#090d18] px-6 text-center text-slate-100">
+          <div className="w-full max-w-md rounded-2xl border border-slate-700/40 bg-slate-900/90 px-7 py-6 shadow-2xl">
+            <h2 className="text-2xl font-extrabold tracking-tight">{shellConfig?.title || "Loading Game"}</h2>
+            {shellConfig?.subtitle && <p className="mt-1.5 text-sm text-slate-400">{shellConfig.subtitle}</p>}
+            <div className="mt-5 h-2 w-full overflow-hidden rounded-full bg-slate-700/40">
+              <div className="h-full w-1/4 animate-pulse rounded-full bg-gradient-to-r from-sky-400 to-indigo-500" />
+            </div>
+            <p className="mt-3 text-xs font-medium text-slate-300">Initializing physics engine...</p>
+          </div>
+        </div>
+      )}
+      {problem && <div className="absolute inset-x-0 top-4 z-50 mx-auto w-fit max-w-[90%] rounded-lg bg-red-600 px-4 py-2 text-sm text-white">{problem}</div>}
     </div>
   )
 }

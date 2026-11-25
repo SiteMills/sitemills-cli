@@ -2,10 +2,9 @@
 
 The backend runtime exposes `ctx.email` so handlers can send outbound emails.
 
-Transport path:
-- `ctx.email.send(...)` in backend handler
-- routed through the platform Email integration service
-- dispatched via the platform's transactional email delivery provider
+Delivery routing:
+- `ctx.email.send(...)` in a server handler
+- Dispatches transactional emails via configured platform OAuth credentials
 
 ## Methods
 
@@ -107,7 +106,7 @@ await ctx.email.send({
 ## Constraints and Notes
 
 - Attachment support is not currently exposed via `ctx.email`.
-- Content is sent as HTML-compatible body text to the delivery service.
+- Content is sent as HTML-compatible body text to the SiteMills email service.
 - Recipient emails are validated at runtime; invalid emails throw before the request is sent.
 
 ## Recommended Usage
@@ -121,5 +120,5 @@ await ctx.email.send({
 
 - Missing required fields (`to`, `subject`, content) → handler throws validation error.
 - Invalid recipient format → handler throws validation error.
-- Email service auth/config mismatch → request fails and error propagates.
-- Email service delivery failure → request fails with upstream error details.
+- Email service authentication or configuration problem → request fails and the error propagates.
+- Email delivery failure → request fails with the delivery error details.

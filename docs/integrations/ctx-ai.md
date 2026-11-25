@@ -3,8 +3,8 @@
 Use `ctx.ai` to enqueue asynchronous AI jobs from backend handlers.
 
 Platform behavior:
-- Requests are queued asynchronously on the platform message bus, not executed inline in the handler.
-- Completed AI work invokes your callback handler route in your backend.
+- Requests are queued asynchronously, not executed inline in the handler.
+- Completed AI work invokes your callback handler route in the SiteMills Sandbox.
 - Retries are queue-driven and visible in the dashboard AI Workflows tab.
 - Runtime credits are charged from token usage + fixed infra surcharge.
 
@@ -16,12 +16,12 @@ Platform behavior:
 const result = await ctx.ai.enqueue({
         workflowType: 'CHAT',           // required: CHAT | ONE_SHOT
         prompt: 'Draft a concise status update for this incident',
-        previousInteractionId: 'interactions/abc_123', // optional: continue a previous conversation / cached context
+        previousInteractionId: 'interactions/abc_123', // optional: continue previous conversation / cached context
         fileIds: ['mid_abc123'],        // optional: attach uploaded files by id
         callbackRoute: 'handlers/ai_callbacks.onStatusDraftReady',
         callbackPayload: { incidentId: 'inc_123' },
         callbackContext: { attemptId: 'att_001' }, // optional: echoed back on callback
-        model: 'gemini-3-flash',        // optional
+        model: 'gemini-4-hydrogen',     // optional
         enableGoogleSearch: true,       // optional, default false
         temperature: 0.7,               // optional, 0.0..2.0, default 0.5
         topK: 40,                       // optional, 1..100, default 40
@@ -37,10 +37,10 @@ const result = await ctx.ai.enqueue({
 const result = await ctx.ai.chat({
         prompt: 'Act as a support assistant and answer politely.',
         previousInteractionId: 'interactions/abc_123', // optional (aliases: convoId, cacheId)
-        fileIds: ['mid_abc123'],        // optional
+    fileIds: ['mid_abc123'],        // optional
         callbackRoute: 'handlers/ai_callbacks.onSupportReplyReady',
         callbackPayload: { ticketId: 't_42' },
-        callbackContext: { threadRef: 'thread_42' }, // optional
+    callbackContext: { convoId: 'convo_42' }, // optional
         model: 'gemini-3-flash-lite', // optional; this is already the default
         enableGoogleSearch: true       // optional, default false
 });
@@ -83,7 +83,7 @@ export async function summarizeIncidentAndNotify(ctx, { incidentId, notes }) {
 
 export async function onIncidentSummaryReady(ctx, params) {
     const summary = params?.response;
-    const incidentId = params?.incidentId;
+    const incidentId = params?.callbackPayload?.incidentId;  // what you passed as callbackPayload arrives nested
 
     if (!summary || !incidentId) {
         throw new Error('Missing callback fields for summary stage');
@@ -109,12 +109,12 @@ export async function onIncidentSummaryReady(ctx, params) {
 
 - If `model` is omitted (or blank), runtime defaults to `gemini-3-flash-lite`.
 - Allowed explicit values:
+    - `gemini-4-hydrogen`
+    - `gemini-4-carbon`
+    - `gemini-4-neon`
     - `gemini-3-pro`
-    - `gemini-3.8-flash`
-    - `gemini-3.7-flash`
-    - `gemini-3.6-flash`
-    - `gemini-3.5-flash`
-    - `gemini-3-flash`
+    - `gemini-3.8-flash` (still accepted; use `gemini-4-hydrogen` in new code)
+    - `gemini-4-argon` (still accepted: it runs on `gemini-4-neon` at Neon's rates; use `gemini-4-neon` in new code)
     - `gemini-3-flash-lite`
 
 ## Optional Google Search Grounding
@@ -145,7 +145,7 @@ export async function summarizeUploadedSpec(ctx, { fileId, specId }) {
         throw new Error('fileId and specId are required');
     }
 
-    const resource = `specs:${specId}`; // project-relative; the platform scopes it automatically
+    const resource = `specs:${specId}`;
 
     await ctx.permissions.require({
         subjectId: ctx.user.id,
@@ -183,7 +183,8 @@ export async function summarizeUploadedSpec(ctx, { fileId, specId }) {
 }
 
 export async function onSpecSummaryReady(ctx, params) {
-    const { specId, fileId, response, usage } = params;
+    const { response, usage } = params;
+    const { specId, fileId } = params?.callbackPayload ?? {};  // callbackPayload arrives nested, not merged
     if (!specId || !response) {
         throw new Error('Missing specId/response in AI callback');
     }
@@ -236,10 +237,10 @@ When the model call succeeds, runtime invokes your callback route with payload:
     prompt: string,
     response: string,
     model: string,
-    interactionId?: string,         // Stateful interaction ID for multi-turn continuations
-    convoId?: string,               // Alias for interactionId
-    conversationId?: string,        // Alias for interactionId
-    cacheId?: string,               // Alias for interactionId
+    interactionId?: string,     // Stateful interaction ID for multi-turn continuations
+    convoId?: string,           // Alias for interactionId
+    conversationId?: string,    // Alias for interactionId
+    cacheId?: string,           // Alias for interactionId
     previousInteractionId?: string, // Populated if this turn continued a previous interaction
     usage: {
         promptTokenCount?: number,
@@ -351,6 +352,7 @@ Workflow statuses:
 
 Retry attempts are controlled by `maxRetries` (default 2).
 Retry scheduling is queue-based with backoff and appears in the dashboard.
+A call cut off by a platform restart is retried like a failed attempt, counting toward `maxRetries`; one found more than a day later is marked `FAILED` with reason `interrupted`.
 
 ## Validation rules
 
@@ -361,7 +363,6 @@ Retry scheduling is queue-based with backoff and appears in the dashboard.
 - `temperature` must be between 0.0 and 2.0 when provided (default 0.5).
 - `topK` must be an integer between 1 and 100 when provided (default 40).
 - `topP` must be between 0.0 and 1.0 when provided (default 0.95).
-- `previousInteractionId` (or its aliases) must be a string when provided.
 - `fileIds` must be an array of non-empty strings when provided.
 - `maxRetries` must be 0..5 when provided.
 - `timeoutMs` must be 1000..120000 when provided.

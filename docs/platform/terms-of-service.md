@@ -19,6 +19,8 @@ All projects and account activity must comply with the [Acceptable Use Policy (A
 
 SiteMills reserves the right to suspend, throttle, or permanently disable any project or account that violates these policies or poses security risks to the platform.
 
+When SiteMills suspends a project, it tells the project's owner and developers why, by email and in a support case in their dashboard (`/support`), except where the law or a security investigation requires otherwise. Replying in that case is how to ask for a review. If an account is suspended, the sign-in page says so, and its owner can email `support@sitemills.com` to ask for a review.
+
 ## 4. AI Software Disclaimer & User Verification Duty
 
 - **Non-Deterministic Outputs**: Code synthesized by generative AI models may contain defects, syntax edge cases, or security bugs.
@@ -27,7 +29,7 @@ SiteMills reserves the right to suspend, throttle, or permanently disable any pr
 
 ## 5. Subscriptions, Billing & Cancellations
 
-- **Recurring Subscriptions**: Paid tiers renew automatically on a recurring monthly or annual billing cycle via our PCI-DSS payment processor, Stripe, until canceled.
+- **Recurring Subscriptions**: Paid tiers renew automatically on a recurring monthly billing cycle via our PCI-DSS payment processor, Stripe, until canceled.
 - **Cancellation**: You may cancel auto-renewal at any time through `Dashboard > Billing`. Your project remains active on its current tier through the end of the prepaid billing period.
 - **Refund Policy**: All subscription fees, compute credit allocations, and custom domain registrations are non-refundable.
 - **Domain Registrations**: Custom domains provisioned through registrar partners (e.g. Cloudflare Registrar) are annual, registered directly with ICANN registries, and cannot be refunded once provisioned.
@@ -47,4 +49,4 @@ SiteMills reserves the right to suspend, throttle, or permanently disable any pr
 
 ## 8. Support & Compliance Contact
 
-Inquiries, abuse reports, and DMCA takedown notices may be directed to `support@sitemills.com`.
+Abuse reports and DMCA takedown notices go to `abuse@sitemills.com`. Other inquiries go to `support@sitemills.com`.

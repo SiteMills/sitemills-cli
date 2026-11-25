@@ -32,20 +32,14 @@ Main navigation tabs:
 A project is the top-level container for your app, code, data, deployments,
 and billing policy.
 
-### Branch
+### Branch & Deployment Paradigm (Not Git)
 
-A branch is an editable line of development for a project. Branches can be
-deployed independently to environments.
+SiteMills is **not Git**. There are no feature branches, branch trees, or user branch creation flows.
+There is a single **Working Draft** where active development happens. Deployments promote the Working Draft (or a checkpoint saved from it) to target environments:
 
-### Environment
-
-SiteMills uses three environment labels:
-
-- `DEV`
-- `STAGING`
-- `PROD`
-
-Branches can be deployed to one or more of these environments.
+- `DEV`: Development testing environment
+- `STAGING`: Pre-production release verification environment
+- `PROD`: Live production website visible to real users and customers
 
 ### Credits
 
@@ -54,11 +48,11 @@ SiteMills tracks two credit pools:
 - Build credits: consumed by AI/code generation workflows.
 - Runtime credits: consumed by runtime/backend activity.
 
-### Preview Branches & Preview Tokens
+### Branch Links & Preview Tokens
 
-Preview subdomains (`https://<projectId>--<branch>.<domain>/`) and non-production environments (`DEV`, `STAGING`) are private and developer-gated by default. 
+Branch subdomains (`https://<site-address>--<branch>.sitemills.com/`, for the Working Draft and checkpoints) and non-production environments (`DEV`, `STAGING`) are private and developer-gated by default. 
 
-To allow testing with unauthenticated users, different test accounts, or external reviewers who do not have SiteMills accounts, preview URLs automatically include a `preview_token` query parameter. This token grants scoped preview access and establishes a temporary bypass cookie for seamless navigation. See [preview-branch-tokens.md](docs/platform/preview-branch-tokens.md).
+To allow testing with unauthenticated users, different test accounts, or external reviewers who do not have SiteMills accounts, branch links automatically include a `preview_token` query parameter. This token grants scoped access and establishes a temporary bypass cookie for seamless navigation. See [preview-branch-tokens.md](docs/platform/preview-branch-tokens.md).
 
 ### What is a data scope?
 
@@ -80,7 +74,8 @@ and new data appears in the scope where it was written.
 
 Across tabs, users can access:
 
-- Sidebar tab navigation
+- Topbar dock navigation with recent-view tabs and a searchable **More** menu (`Ctrl/Cmd+K`) to jump to any dashboard section, Settings sub-section, or data collection
+- Profile menu with **Support** (`/support`, showing unread support reply counts and an avatar notification dot) and **Contact support** (`/support/new`)
 - Branch/version selector
 - Build/runtime credit meters
 - Mobile/desktop responsive controls
@@ -115,7 +110,7 @@ What users can do:
 Access note:
 
 - Free-tier projects may keep preview access while code editing is locked.
-- Preview URLs opened in a new tab or copied include `preview_token` to permit testing with unauthenticated sessions, incognito windows, or external collaborators without SiteMills accounts.
+- Preview links opened in a new tab or copied include `preview_token` to permit testing with unauthenticated sessions, incognito windows, or external collaborators without SiteMills accounts.
 
 ### Data Management
 
@@ -155,10 +150,10 @@ Purpose:
 
 Sections and capabilities:
 
-- `General`: project visibility and indexing toggles.
+- `General`: project name (owners and developers can rename the project; the name is display text only and does not change the project ID or site address), site address (the project owner can change `<site-address>.sitemills.com`; old addresses stay reserved for the project and keep serving the site, up to 3 old addresses), project visibility, and search-engine indexing toggles.
 - `Branding`: upload/remove project banner (center-cropped and optimized).
 - `Payments`: Stripe Connect setup, mode selection (`Sandbox` or `Production`), onboarding status.
-- `API Keys`: create/delete environment keys, preview environment resolution, descriptions, audit metadata.
+- `API Keys`: create/delete environment keys, check which value each environment resolves to, descriptions, audit metadata.
 - `Team Members`: invite users, update member role, remove member (permission-gated).
 - `Share Project`: copy share link.
 - `Notifications`: notification preference toggles.
@@ -200,10 +195,9 @@ What users can see:
 
 What users can do:
 
-- Open branch details
+- Open branch details and inspect the branch's link
 - Open selected branch in Build editor
-- Fork new branches
-- Deploy selected branch to an environment
+- Deploy the validated Working Draft (or a checkpoint) to a target environment (`DEV`, `STAGING`, `PROD`)
 
 ### Billing
 

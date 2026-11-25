@@ -204,8 +204,56 @@ Returns:
 
 ---
 
+### 7) Link a Bank Through Dwolla's Plaid Exchange
+An alternative to `ctx.plaid.createProcessorToken` when the bank is linked through Dwolla's own Plaid exchange partner.
+
+`createExchangeSession` starts a session for a customer and returns the Plaid Link token to open in the browser:
+
+```typescript
+const session = await ctx.dwolla.createExchangeSession({ customerId: 'bf6b6298-7d10-491a-851f-7325bee774db' });
+```
+
+Returns:
+```json
+{
+  "exchangeSessionId": "d0a8f6b2-5c1e-4e7a-9f3b-2a1c4d5e6f70",
+  "exchangeSessionUri": "https://api-sandbox.dwolla.com/exchange-sessions/d0a8f6b2-5c1e-4e7a-9f3b-2a1c4d5e6f70",
+  "plaidLinkToken": "link-sandbox-..."
+}
+```
+
+After Plaid Link returns a `public_token`, `createExchange` records it with Dwolla:
+
+```typescript
+const exchange = await ctx.dwolla.createExchange({
+    customerId: 'bf6b6298-7d10-491a-851f-7325bee774db',
+    publicToken: publicTokenFromPlaidLink
+});
+```
+
+Returns:
+```json
+{
+  "exchangeId": "5f2b7c1d-8e3a-4b6c-9d0e-1a2b3c4d5e6f",
+  "exchangeUri": "https://api-sandbox.dwolla.com/exchanges/5f2b7c1d-8e3a-4b6c-9d0e-1a2b3c4d5e6f"
+}
+```
+
+Then create the funding source from the exchange:
+
+```typescript
+const bank = await ctx.dwolla.addFundingSource({
+    customerId: 'bf6b6298-7d10-491a-851f-7325bee774db',
+    _links: { exchange: { href: exchange.exchangeUri } },
+    bankAccountType: 'checking', // 'checking' | 'savings'
+    name: 'Verified Checking Account'
+});
+```
+
+---
+
 ## Multi-Tenant Property Routing Design
-For applications like **Rentflow** where a landlord receives payments for different properties in different bank accounts:
+For applications like a property-management app where a landlord receives payments for different properties in different bank accounts:
 1. Ensure `DWOLLA_KEY` and `DWOLLA_SECRET` are stored in the project Keystore (`ctx.env`).
 2. Onboard the landlord **once** using `ctx.dwolla.createCustomer` with `type: "personal"` or `"business"`.
 3. Save their primary customer ID in your database.

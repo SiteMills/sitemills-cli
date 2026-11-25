@@ -6,7 +6,7 @@ Welcome to the **SiteMills Platform Documentation**. This guide provides an exte
 
 ## 1. High-Level Architecture
 
-SiteMills is designed around a high-performance, distributed cloud architecture combining web application gateways, sandboxed execution runtimes (V8 Isolates), persistent document storage, and an asynchronous event bus.
+SiteMills is designed around a high-performance, distributed cloud architecture combining web application gateways, sandboxed execution runtimes (SiteMills Sandbox), persistent document storage, and an asynchronous event bus.
 
 ```
                   ┌────────────────────────────────────────┐
@@ -29,7 +29,7 @@ SiteMills is designed around a high-performance, distributed cloud architecture 
                            ▼                       ▼
               ┌────────────────────────┐┌────────────────────────┐
               │  Sandboxed Serverless  ││   Managed Databases    │
-              │     (V8 Isolates)      ││   & Object Storage     │
+              │   (SiteMills Sandbox)  ││   & Object Storage     │
               └────────────────────────┘└────────────────────────┘
 ```
 
@@ -38,13 +38,13 @@ SiteMills is designed around a high-performance, distributed cloud architecture 
 - **Management API**: Platform backend managing user projects, deployment branches, analytics, and access control.
 - **Automation Engine**: Service managing deployment builds, preview generations, and AI code workflow pipelines.
 - **Realtime Gateway**: Scalable WebSocket communication layer for real-time messaging, updates, and pub/sub topics.
-- **Sandboxed Serverless Runtime**: Secure V8 engine isolate worker running user-defined backend handler modules with zero host access.
+- **Sandboxed Serverless Runtime**: Secure sandboxed worker running user-defined backend handler modules with zero host access.
 
 ---
 
 ## 2. Server Runtime & Context (`ctx`)
 
-Backend handlers (`server/handlers.ts`) run in a sandboxed V8 isolate. Each handler receives a `ctx` object as its first argument, which gives access to the platform integrations listed below (for example `ctx.db`, `ctx.storage`, `ctx.ai`).
+Backend handlers (`server/handlers.ts`) run in the SiteMills Sandbox. Each handler receives a `ctx` object as its first argument, which gives access to the platform integrations listed below (for example `ctx.db`, `ctx.storage`, `ctx.ai`).
 
 ---
 
@@ -52,12 +52,14 @@ Backend handlers (`server/handlers.ts`) run in a sandboxed V8 isolate. Each hand
 
 The table below lists the supported integrations, whether they are available on the server `ctx`, and where to find their documentation:
 
-| Integration ID | SDK Prefix | Isolate Runtime? | Frontend? | Documentation Reference |
+| Integration ID | SDK Prefix | Server Runtime? | Frontend? | Documentation Reference |
 |---|---|:---:|:---:|---|
 | **`ai`** | `ctx.ai` | **Yes** | Yes | [`integrations/ctx-ai.md`](integrations/ctx-ai.md) |
 | **`dwolla`** | `ctx.dwolla` | **Yes** | No | [`integrations/ctx-dwolla.md`](integrations/ctx-dwolla.md) |
 | **`email`** | `ctx.email` | **Yes** | No | [`integrations/ctx-email.md`](integrations/ctx-email.md) |
 | **`env`** | `ctx.env` | **Yes** | No | [`integrations/ctx-env.md`](integrations/ctx-env.md) |
+| **`eufy`** | `ctx.eufy` | **Yes** | Yes | [`integrations/ctx-eufy.md`](integrations/ctx-eufy.md) |
+| **`github`** | `ctx.github` | **Yes** | No | [`integrations/ctx-github.md`](integrations/ctx-github.md) |
 | **`google-workspace`** | `ctx.googleWorkspace` | **Yes** | No | [`integrations/ctx-google-workspace.md`](integrations/ctx-google-workspace.md) |
 | **`googlemaps`**| `ctx.googlemaps` | **Yes** | No | [`integrations/ctx-googlemaps.md`](integrations/ctx-googlemaps.md) |
 | **`http`** | `ctx.httpClient` | **Yes** | No | [`integrations/ctx-http.md`](integrations/ctx-http.md) |
@@ -71,8 +73,11 @@ The table below lists the supported integrations, whether they are available on 
 | **`queue`** | `ctx.queue` | **Yes** | No | [`integrations/ctx-queue.md`](integrations/ctx-queue.md) |
 | **`realtime`** | `ctx.realtime` | **Yes** | No | [`integrations/ctx-realtime.md`](integrations/ctx-realtime.md) |
 | **`sms`** | `ctx.sms` | **Yes** | No | [`integrations/ctx-sms.md`](integrations/ctx-sms.md) |
+| **`snapchat-leads`** | — | **No** | Yes | [`integrations/ctx-snapchat-leads.md`](integrations/ctx-snapchat-leads.md) |
 | **`storage`** | `ctx.storage` | **Yes** | No | [`integrations/ctx-storage.md`](integrations/ctx-storage.md) |
-| **`analytics`** | — | **No** | Yes | *Frontend analytics only. Unsupported in server isolate.* |
+| **`trafficquality`** | `ctx.trafficquality` | **Yes** | No | [`integrations/ctx-trafficquality.md`](integrations/ctx-trafficquality.md) |
+| **`visitoranalytics`** | `ctx.visitoranalytics` | **Yes** | No | [`integrations/ctx-visitoranalytics.md`](integrations/ctx-visitoranalytics.md) |
+| **`analytics`** | — | **No** | Yes | *Frontend analytics only. Unsupported in server handlers.* |
 
 ---
 

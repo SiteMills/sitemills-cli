@@ -143,7 +143,7 @@ export const client: ClientScript = ({ player, RunService }) => {
 
 ```ts
 // Open world: a sunlit town to walk and drive around. Coins to collect (kept between visits in a DataStore), a sports
-// car anyone can drive (its VehicleSeat's Throttle and Steer turn its wheel motors), a market stall with a
+// car anyone can drive (a car of the engine's own: a VehicleSeat and four VehicleWheels), a market stall with a
 // ProximityPrompt that sells speed, and townsfolk walking between places along paths (PathfindingService).
 import {
   CFrame,
@@ -157,7 +157,6 @@ import {
   type BasePart,
   type EnginePlace,
   type GameShellConfig,
-  type HingeConstraint,
   type Humanoid,
   type IntValue,
 } from "../framework/index"
@@ -193,6 +192,16 @@ export const shell: GameShellConfig = {
     "Walk with WASD or the thumbstick to collect gold coins saved across visits.",
     "Visit the red market stall with 10 coins for a speed boost, or hop into the sports car's driver seat to cruise the avenues.",
   ],
+  controls: [
+    { keys: "WASD", action: "Walk / Drive" },
+    { keys: "Space", action: "Jump / Exit car" },
+    { keys: "Drag Mouse", action: "Orbit camera" },
+    { keys: "E", action: "Interact at market stall" },
+    { keys: "M", action: "Expand town map" },
+    { keys: "Enter or /", action: "Chat" },
+    { keys: "Esc", action: "Pause & Settings" },
+  ],
+  minimap: { range: 160, players: "all" },
 }
 
 export const place: EnginePlace = ({
@@ -348,7 +357,8 @@ export const place: EnginePlace = ({
     buySound.Play()
   })
 
-  // A sports car: a physics chassis on four motorised wheels, a VehicleSeat, and a 3D car body welded on.
+  // A sports car: an invisible chassis, a VehicleSeat, four invisible wheels that carry it (VehicleWheels), and a 3D
+  // car body welded on. The engine drives it: whoever sits in the seat drives.
   const car = new Instance("Model")
   car.Name = "Car"
   const chassis = part("Chassis", new Vector3(5.4, 1, 10), new Vector3(-3.5, 3, 28), Color3.fromRGB(36, 38, 44), Enum.Material.SmoothPlastic, car)
@@ -370,11 +380,12 @@ export const place: EnginePlace = ({
   const seat = new Instance("VehicleSeat")
   seat.Position = new Vector3(-3.5, 3.6, 28.4)
   seat.Transparency = 1
+  seat.MaxSpeed = 60
   seat.Parent = car
   const weld = new Instance("WeldConstraint", seat)
   weld.Part0 = chassis
   weld.Part1 = seat
-  const wheels: HingeConstraint[] = []
+  // The front (the seat's look, -Z) steers.
   for (const [x, z] of [[-3.2, -3], [3.2, -3], [-3.2, 3], [3.2, 3]]) {
     const wheel = new Instance("Part")
     wheel.Name = "Wheel"
@@ -383,24 +394,14 @@ export const place: EnginePlace = ({
     wheel.Position = new Vector3(-3.5 + x, 2, 28 + z)
     wheel.Transparency = 1
     wheel.Parent = car
-    const a0 = new Instance("Attachment", chassis)
-    a0.Position = new Vector3(x, -1, z)
-    const a1 = new Instance("Attachment", wheel)
-    const hinge = new Instance("HingeConstraint", chassis)
-    hinge.Attachment0 = a0
-    hinge.Attachment1 = a1
-    hinge.ActuatorType = Enum.ActuatorType.Motor
-    hinge.MotorMaxTorque = 1e5
-    wheels.push(hinge)
+    const spec = new Instance("VehicleWheel")
+    spec.Steer = z < 0
+    spec.Parent = wheel
+    const axle = new Instance("WeldConstraint", wheel)
+    axle.Part0 = chassis
+    axle.Part1 = wheel
   }
   car.Parent = Workspace
-  seat.Changed.Connect((property) => {
-    if (property !== "ThrottleFloat" && property !== "SteerFloat") return
-    wheels.forEach((hinge, i) => {
-      const left = i % 2 === 0
-      hinge.AngularVelocity = -seat.ThrottleFloat * 16 + seat.SteerFloat * (left ? -6 : 6)
-    })
-  })
 
   // Townsfolk: animated 3D citizens strolling round the town square.
   const places = [new Vector3(-40, 0, -40), new Vector3(40, 0, -40), new Vector3(40, 0, 40), new Vector3(-40, 0, 40)]
@@ -803,14 +804,15 @@ import * as gamePlace from "../../server/game/place"
 export function GamePage() {
   const container = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
+  const [booting, setBooting] = useState(true)
   const [problem, setProblem] = useState<string | null>(null)
+  const shellConfig = (gamePlace as { shell?: GameShellConfig }).shell
   useEffect(() => {
     let dispose: (() => void) | null = null
     let gone = false
     void (async () => {
       await RAPIER.init()
       if (gone || !canvas.current || !container.current) return
-      const shellConfig = (gamePlace as { shell?: GameShellConfig }).shell
       const shell = await mountGameShell({
         canvas: canvas.current,
         container: container.current,
@@ -825,17 +827,35 @@ export function GamePage() {
         },
       })
       if (gone) shell.dispose()
-      else dispose = () => shell.dispose()
-    })().catch((error: unknown) => setProblem(error instanceof Error ? error.message : String(error)))
+      else {
+        dispose = () => shell.dispose()
+        setBooting(false)
+      }
+    })().catch((error: unknown) => {
+      setBooting(false)
+      setProblem(error instanceof Error ? error.message : String(error))
+    })
     return () => {
       gone = true
       dispose?.()
     }
   }, [])
   return (
-    <div ref={container} className="relative h-svh w-full select-none overflow-hidden bg-black">
+    <div ref={container} className="relative h-svh w-full select-none overflow-hidden bg-[#090d18]">
       <canvas ref={canvas} className="block h-full w-full" />
-      {problem && <div className="absolute inset-x-0 top-4 z-30 mx-auto w-fit max-w-[90%] rounded-lg bg-red-600 px-4 py-2 text-sm text-white">{problem}</div>}
+      {booting && !problem && (
+        <div className="pointer-events-none absolute inset-0 z-40 flex flex-col items-center justify-center bg-[#090d18] px-6 text-center text-slate-100">
+          <div className="w-full max-w-md rounded-2xl border border-slate-700/40 bg-slate-900/90 px-7 py-6 shadow-2xl">
+            <h2 className="text-2xl font-extrabold tracking-tight">{shellConfig?.title || "Loading Game"}</h2>
+            {shellConfig?.subtitle && <p className="mt-1.5 text-sm text-slate-400">{shellConfig.subtitle}</p>}
+            <div className="mt-5 h-2 w-full overflow-hidden rounded-full bg-slate-700/40">
+              <div className="h-full w-1/4 animate-pulse rounded-full bg-gradient-to-r from-sky-400 to-indigo-500" />
+            </div>
+            <p className="mt-3 text-xs font-medium text-slate-300">Initializing physics engine...</p>
+          </div>
+        </div>
+      )}
+      {problem && <div className="absolute inset-x-0 top-4 z-50 mx-auto w-fit max-w-[90%] rounded-lg bg-red-600 px-4 py-2 text-sm text-white">{problem}</div>}
     </div>
   )
 }

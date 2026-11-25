@@ -63,74 +63,39 @@ independently. One failed primary check must not suppress a healthy alias route.
 A route is returned only with recent ownership, DNS, and HTTPS readiness and is
 marked active after the infrastructure controller acknowledges it.
 
-## Validation
-
-Run the dashboard's `*CustomDomain*Test` and `*ManagedDns*Test` suites. The browser
-regression is `node tests/domain-management.browser.mjs` from `node/webfe`; it
-uses intercepted APIs and does not purchase domains or modify external DNS.
-
 ## Purchase failure handling
 
-New Stripe domain checkout is disabled unless the dashboard environment explicitly
-sets `SITEMILLS_DOMAIN_CHECKOUT_ENABLED=true`. Keep it disabled until the registrar
-account has a default payment method, a default registrant contact, and the
-registration agreement accepted, and the registration lifecycle has been verified.
-This gate does not disable connecting an already-owned domain.
+New domain checkout may be temporarily paused in an environment when registrar
+billing is disabled (the buy button displays "Purchases paused"). Connecting an
+already-owned domain remains available while purchases are paused.
 
-Confirmation verifies the Stripe payment server-side (project, domain, purchase
-metadata, successful full payment, and no refund/dispute). Failed and already-started
-registrar claims cannot be blindly replayed, including through the admin retry route.
-Only a terminal successful Cloudflare registration permits DNS provisioning.
-Pending registration is polled using read-only status requests for a bounded window;
-unresolved or action-required results still require support reconciliation. Provider errors retain
-HTTP status and numeric codes without disclosing provider bodies or credentials.
-The client exits the registration spinner on failure and advises against paying again.
-
-Refunds are currently support-managed. Before refunding, confirm the registrar did
-not complete the purchase and verify the Stripe charge and any previous refunds.
-Use a stable per-payment idempotency key. Never automatically refund an ambiguous
-502, timeout, or DNS failure after registration succeeded. Automated refunds require
-a durable payment/registration reconciliation workflow; they are not enabled by
-these safeguards. Prefer payment authorization followed by capture after confirmed
-registration for a future checkout revision, with reconciliation for capture failures.
-
-Cloudflare prerequisites and response states:
-https://developers.cloudflare.com/registrar/registrar-api/
-
-A refunded, released reservation without a DNS zone can start a fresh checkout;
-it receives a new Stripe payment reference and clears the detached flag. The old
-refunded payment cannot be reused. Stripe retains the original payment/refund audit.
-A detached binding with a DNS zone requires support review and is never adopted by
-this purchase path. After confirmed registration, only an exact domain/account
-zone can be reused when Cloudflare already created it.
-
-The search response exposes `checkoutPaused` from the dashboard checkout setting.
-The buy button is disabled and labeled "Purchases paused" while that setting is off.
-Checkout checks this setting before creating a project binding or Stripe payment.
-The browser confirmation timeout is 95 seconds, covering the backend's 90-second
-budget. This does not add automatic refunds or reuse a refunded payment.
+Domain checkout verifies payment server-side (project, domain, purchase metadata,
+successful full payment, and no refund/dispute) before completing registration
+and DNS provisioning. Pending registration is polled for a bounded window; if
+registration fails or remains unresolved, do not pay again — check the domain
+status or contact support for reconciliation or a refund.
 
 ## CLI Integration for Managed DNS
 
 Developers and site owners can manage their project's custom domains and DNS records
-directly from the terminal using `tools/sitemills-cli.js`.
+directly from the terminal using `sitemills-cli`.
 
 ### Prerequisites
 Log in to the target SiteMills platform:
 ```bash
-node tools/sitemills-cli.js login --host https://sitemills.com
+sitemills-cli login
 ```
 
 ### 1. View Connected Domains
 Inspect primary domain, aliases, routing status, and whether Managed DNS is active:
 ```bash
-node tools/sitemills-cli.js domain PROJECT_ID [--host <host>]
+sitemills-cli domain PROJECT_ID
 ```
 
 ### 2. List DNS Records
 View all current DNS records (both system-locked routing records and customer records):
 ```bash
-node tools/sitemills-cli.js domain dns list PROJECT_ID [--domain <aliasDomain>] [--host <host>]
+sitemills-cli domain dns list PROJECT_ID [--domain <aliasDomain>]
 ```
 Example output:
 ```text
@@ -147,53 +112,33 @@ or **Hostinger Web Hosting** can be attached by adding their DNS records:
 
 ```bash
 # Add Hostinger Primary and Secondary MX Records
-node tools/sitemills-cli.js domain dns add PROJECT_ID --type MX --name @ --content mx1.hostinger.com --priority 5
-node tools/sitemills-cli.js domain dns add PROJECT_ID --type MX --name @ --content mx2.hostinger.com --priority 10
+sitemills-cli domain dns add PROJECT_ID --type MX --name @ --content mx1.hostinger.com --priority 5
+sitemills-cli domain dns add PROJECT_ID --type MX --name @ --content mx2.hostinger.com --priority 10
 
 # Add Hostinger SPF Verification Record
-node tools/sitemills-cli.js domain dns add PROJECT_ID --type TXT --name @ --content "v=spf1 include:_spf.hostinger.com ~all"
+sitemills-cli domain dns add PROJECT_ID --type TXT --name @ --content "v=spf1 include:_spf.hostinger.com ~all"
 
 # Add Hostinger DKIM / Domain Key Record
-node tools/sitemills-cli.js domain dns add PROJECT_ID --type TXT --name hostingermail-a._domainkey --content "v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQ..."
+sitemills-cli domain dns add PROJECT_ID --type TXT --name hostingermail-a._domainkey --content "v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQ..."
 
 # Point a subdomain (e.g., blog or mail) to Hostinger
-node tools/sitemills-cli.js domain dns add PROJECT_ID --type CNAME --name blog --content connect.hostinger.com
+sitemills-cli domain dns add PROJECT_ID --type CNAME --name blog --content connect.hostinger.com
 ```
 
 ### 4. Updating an Existing DNS Record
 Update an existing record's content, TTL, or priority by ID or name/type:
 ```bash
 # Update by Record ID
-node tools/sitemills-cli.js domain dns update PROJECT_ID rec_12345 --content "v=spf1 include:_spf.hostinger.com include:sendgrid.net ~all"
+sitemills-cli domain dns update PROJECT_ID rec_12345 --content "v=spf1 include:_spf.hostinger.com include:sendgrid.net ~all"
 
 # Update with custom TTL or Priority
-node tools/sitemills-cli.js domain dns update PROJECT_ID rec_12345 --content mx1.hostinger.com --priority 10 --ttl 600
+sitemills-cli domain dns update PROJECT_ID rec_12345 --content mx1.hostinger.com --priority 10 --ttl 600
 ```
 
 ### 5. Deleting a DNS Record
 Delete an obsolete or replaced record:
 ```bash
-node tools/sitemills-cli.js domain dns delete PROJECT_ID rec_12345
-```
-
-### 6. Admin CLI Operations (`sitemills-admin-cli.js`)
-Platform administrators and automated operational agents can inspect and manage project domains across environments (`--env dev|prod|local`) with optional raw JSON output (`--json`):
-
-```bash
-# Inspect domain status as an admin
-node tools/sitemills-admin-cli.js domains status PROJECT_ID [--env dev|prod] [--json]
-
-# List managed DNS records
-node tools/sitemills-admin-cli.js domains dns-list PROJECT_ID [--domain <aliasDomain>] [--env dev|prod] [--json]
-
-# Add a record (e.g. Hostinger MX, SPF TXT, or external CNAME)
-node tools/sitemills-admin-cli.js domains dns-add PROJECT_ID --type MX --name @ --content mx1.hostinger.com --priority 5 [--env dev|prod]
-
-# Update an existing record
-node tools/sitemills-admin-cli.js domains dns-update PROJECT_ID RECORD_ID --content <NEW_CONTENT> [--ttl <TTL>] [--priority <PRIORITY>] [--env dev|prod]
-
-# Delete a record
-node tools/sitemills-admin-cli.js domains dns-delete PROJECT_ID RECORD_ID [--domain <aliasDomain>] [--env dev|prod]
+sitemills-cli domain dns delete PROJECT_ID rec_12345
 ```
 
 ### Security & Guardrails

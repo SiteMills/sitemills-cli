@@ -1,526 +1,146 @@
-# Orders API — Stripe Connect + Hosted Checkout
+# Orders API (`ctx.orders`)
 
-The backend runtime exposes `ctx.orders` for project-level payment setup and checkout.
+The backend runtime exposes `ctx.orders` for project-level Stripe Connect setup, hosted checkout, live order inspection, refunds, subscription portals, and hardware reader onboarding.
 
-Use this when your app needs to:
-- Enable Stripe Connect payouts for a project owner.
-- Check whether payments are fully enabled.
-- Create a hosted Stripe Checkout session.
-- Look up a checkout session by `sessionId` to continue post-checkout fulfillment.
-- Onboard third-party users/sub-merchants (like landlords or vendors) dynamically to their own Stripe accounts.
-- Route payouts dynamically to different bank accounts per transaction using the custom `connectedAccountId` override.
-- Let subscribers view, cancel (at period end), or manage billing for a subscription created through checkout.
+Read the focused topic page that matches your task before implementing a specific workflow:
+- Checkout sessions, taxes, shipping, discounts, custom fields, expiration, and receipt fields: `docs/ctx-orders-checkout.md`
+- Recurring billing, free trials, cancellations, and Stripe billing portals: `docs/ctx-orders-subscriptions.md`
+- Multi-tenant marketplace / landlord payouts and sub-merchant onboarding: `docs/ctx-orders-marketplace.md`
 
-## Single-Account vs. Multi-Tenant Routing Models
-
-The platform supports two main routing architectures:
+## Single-Account vs. Multi-Tenant Routing
 
 1. **Single-Account Model (Default)**
-   - **When to use**: Typical e-commerce sites, subscription apps, or single-owner services.
-   - **How it works**: The website owner connects one Stripe account via the Sitemills Builder settings. All checkout transactions are automatically processed through this account and paid out to the owner's default bank account. No custom database tracking of Stripe accounts is required.
-
+   - **When to use**: E-commerce storefronts, SaaS subscriptions, or single-owner booking sites.
+   - **How it works**: Connect one Stripe account in SiteMills Dashboard settings (or call `ctx.orders.enablePayments(...)`). All checkout payments route to that account automatically.
 2. **Multi-Tenant / Ad-Hoc Model**
-   - **When to use**: Marketplaces, rental platforms (multi-landlord), or booking directories where different transactions must pay out to different bank accounts/parties.
-   - **How it works**: Individual users/sub-merchants onboard via `ctx.orders.createAdHocOnboardingLink(...)`. You save their generated `connectedAccountId` in your application database. During checkout, you retrieve this ID and pass it as the `connectedAccountId` property in `ctx.orders.checkout(...)` to route that specific transaction directly to their bank account.
+   - **When to use**: Marketplaces or multi-vendor platforms where separate sellers receive payouts directly.
+   - **How it works**: Onboard each seller with `ctx.orders.createAdHocOnboardingLink(...)`, store their `connectedAccountId`, and pass `connectedAccountId` into `ctx.orders.checkout(...)`. See `docs/ctx-orders-marketplace.md` for full code examples.
 
-## Methods
+## Method Quick Reference
 
-### Connected subscription management
+| Area | Methods | Guide |
+| :--- | :--- | :--- |
+| Merchant Onboarding & Status | `enablePayments`, `createAdHocOnboardingLink` (`createCustomAccountOnboardingLink`), `getStatus` (`status`) | This doc & `docs/ctx-orders-marketplace.md` |
+| Hosted Checkout & Session Read | `checkout` (`createCheckoutSession`), `expireCheckout`, `getSession` (`getCheckoutSession`) | `docs/ctx-orders-checkout.md` |
+| Live Order Reads & History | `getOrder`, `getOrderHistory` (`listOrders`, `history`) | This doc & `docs/ctx-orders-checkout.md` |
+| Subscriptions & Portal | `getSubscription`, `cancelSubscription`, `createBillingPortal` | `docs/ctx-orders-subscriptions.md` |
+| Refunds | `refund` (`refundPayment`) | This doc |
+| POS Reader Setup | `createTerminalConnectionToken`, `registerTerminalReader`, `listTerminalReaders` | This doc |
 
-```typescript
-const subscription = await ctx.orders.getSubscription({ sessionId: savedCheckoutSessionId });
-const canceled = await ctx.orders.cancelSubscription({ sessionId: savedCheckoutSessionId });
-const { portalUrl } = await ctx.orders.createBillingPortal({
-  sessionId: savedCheckoutSessionId,
-  returnUrl: '/#workspace?billing=managed'
-});
-```
-
-Authenticate and authorize the caller against your persisted billing record **before** using these methods. Do not accept arbitrary session IDs directly from clients. The runtime derives project, scope and environment from the request; passing `projectId`, `connectedAccountId`, `subscriptionId` or `customerId` overrides is rejected. The platform verifies the original order, checkout metadata and customer, using the connected account that was originally charged.
-
-Cancellation sets Stripe `cancel_at_period_end=true` without proration; it never immediately deletes the subscription. Repeated requests are safe. Return fields include `status`, `cancelAtPeriodEnd`, `currentPeriodEnd`, `paidThrough`, `serviceUntil`, `endedAt`, `keyMode`, `plans`, `invoices`, and `receiptsAvailable`. `paidThrough` is based on paid subscription invoice lines, not simply subscription status. Missing receipt data must not be treated as proof of payment; cancellation can succeed even if invoice retrieval fails.
-
-Plan `amountMinor` and invoice `amountPaidMinor` use Stripe minor units (USD cents), unlike checkout `unitAmount` and checkout-session `amountTotal` which use major units. The response includes up to 100 recent invoices; the Stripe billing portal offers full history. Invoice URLs are provider-hosted. The billing portal enables payment-method updates, invoice history and end-of-period cancellation, but disables plan changes. Return URLs must be same-origin HTTPS and match the checkout origin. Persist verified status and refresh it periodically; initial checkout completion is not a lifetime entitlement. Cancellation does not automatically deprovision separately hosted websites.
+## Core Methods
 
 ### 1) Enable Payments
 
 ```typescript
 const result = await ctx.orders.enablePayments({
-    ownerEmail: 'owner@example.com',
+    ownerEmail: ctx.user.email,      // signed-in site owner or billing contact
     ownerName: 'Project Owner',      // optional
-    country: 'US',                   // optional, default US server-side
-    refreshUrl: '/billing?retry=1',  // relative path preferred
+    country: 'US',                   // optional, default US
+    refreshUrl: '/billing?retry=1',  // relative path or same-origin HTTPS URL
     returnUrl: '/billing?connected=1'
 });
 ```
 
-Required fields:
-- `ownerEmail`
-- `refreshUrl`
-- `returnUrl`
-
-URL safety rule:
-- Use relative URLs (recommended), or absolute URLs on the same origin as the current request.
-- Cross-origin redirect URLs are rejected.
-
-Returns an object with:
-- `onboardingUrl` — send the owner to this URL to complete Stripe onboarding.
-- `connectedAccountId`
-- `status` (capability flags)
-- `keyMode` (`TEST` or `LIVE`)
-
-### 1b) Create Ad-Hoc Onboarding Link (For Landlords / Sub-merchants)
-
-For multi-tenant systems where individual users/landlords onboard separate bank accounts:
-```typescript
-const result = await ctx.orders.createAdHocOnboardingLink({
-    email: 'landlord@example.com',
-    businessName: 'Landlord Business',    // optional
-    country: 'US',                       // optional, default US
-    connectedAccountId: 'acct_123...',   // optional, pass to resume onboarding on an existing account
-    refreshUrl: '/stripe-onboard/refresh?landlordId=123',
-    returnUrl: '/stripe-onboard/callback?landlordId=123'
-});
-
-// Alias also supported:
-const result2 = await ctx.orders.createCustomAccountOnboardingLink({ ...samePayload });
-```
-
-Required fields:
-- `email`
-- `refreshUrl`
-- `returnUrl`
-
-Returns the same onboarding object (`onboardingUrl`, `connectedAccountId`, `status`, `keyMode`). Note that this account ID is **not** saved to the project-wide settings. Your custom application should save the `connectedAccountId` to its own database. Pass `connectedAccountId` on subsequent calls to resume onboarding for the same account without creating duplicates.
+Returns `{ onboardingUrl, connectedAccountId, status, keyMode }`.
 
 ### 2) Get Payment Status
 
 ```typescript
 const status = await ctx.orders.getStatus({
-    connectedAccountId: 'acct_123...' // optional, checks status of a custom connected account
+    connectedAccountId: 'acct_123...' // optional: check one of this site's seller accounts
 });
 
-// Alias also supported:
+// Alias:
 const sameStatus = await ctx.orders.status({ connectedAccountId: 'acct_123...' });
 ```
 
-Typical response fields:
-- `accountConfigured`
-- `connectedAccountId` (when configured)
-- `status.paymentsEnabled`
-- `status.payoutsEnabled`
-- `status.detailsSubmitted`
+Returns `{ accountConfigured, connectedAccountId, status: { paymentsEnabled, chargesEnabled, payoutsEnabled, detailsSubmitted } }`.
 
 ### 3) Create Hosted Checkout Session
 
 ```typescript
 const checkout = await ctx.orders.checkout({
-    mode: 'payment', // or 'subscription'
-    connectedAccountId: 'acct_123...', // optional, routes payouts dynamically to this account
-    successUrl: '/checkout/success',
+    successUrl: '/checkout/success?session_id={CHECKOUT_SESSION_ID}',
     cancelUrl: '/checkout/cancel',
-    customerEmail: 'buyer@example.com',
-    clientReferenceId: 'order-123',
-    metadata: { source: 'pricing-page' },
+    customerEmail: ctx.user?.email,
+    expiresInMinutes: 60, // optional: 30..1440 minutes (defaults to 1440)
     lineItems: [
-        {
-            name: 'Starter Plan',
-            unitAmount: 19.99,
-            currency: 'usd',
-            quantity: 1
-        }
+        { name: 'Starter Plan', unitAmount: 19.99, currency: 'usd', quantity: 1 }
     ]
 });
-
-// Alias also supported:
-const checkout2 = await ctx.orders.createCheckoutSession({ ...samePayload });
 ```
 
-Required fields:
-- `lineItems` (non-empty)
+See `docs/ctx-orders-checkout.md` for tax calculation, shipping options, promo codes, custom fields, trial periods, dynamic wallets, `expireCheckout(sessionId)`, and `getSession(sessionId)`.
 
-URL safety rule:
-- `successUrl` and `cancelUrl` may be relative paths (recommended) or same-origin absolute URLs.
-- When omitted, runtime defaults are used (`/checkout/success`, `/checkout/cancel`).
-- Cross-origin redirect URLs are rejected.
+### 4) Read a Live Scoped Order (`getOrder`)
 
-Line item fields:
-- `name` (required)
-- `unitAmount` (required; decimal in major units, e.g., `19.99` for $19.99)
-- `currency` (optional, default `usd`)
-- `quantity` (optional, default `1`)
-- `recurringInterval` / `recurringIntervalCount` (optional, for subscriptions)
-
-Also accepted (Stripe-style compatibility):
-- `lineItems[].price_data.product_data.name`
-- `lineItems[].price_data.unit_amount` (in cents)
-- `lineItems[].price_data.currency`
-
-Returns:
-- `checkoutUrl` (redirect buyer here)
-- `checkoutSessionId`
-- `sessionMode`
-- `expiresAt`
-
-Fulfillment recommendation:
-- Include business identifiers in `metadata` when creating checkout (for example `productId`, `quantity`, `orderType`).
-- This makes post-checkout handlers deterministic when they load the session later.
-
-### 4) Get Checkout Session Details
+Look up the current state of an individual order strictly within the current project and runtime environment (`DEV`, `STAGING`, or `PROD`):
 
 ```typescript
-const session = await ctx.orders.getSession('cs_test_123');
-
-// Alias also supported:
-const sameSession = await ctx.orders.getCheckoutSession('cs_test_123');
+const order = await ctx.orders.getOrder('ord_abc123');
+// Or with options object:
+const order2 = await ctx.orders.getOrder({ orderId: 'ord_abc123' });
 ```
 
-Supported call forms:
-- `getSession(sessionId)`
-- `getSession({ sessionId })`
+Returns live order state:
+- `orderId`, `orderType`, `status`, `stripeCheckoutSessionId`, `stripePaymentIntentId`, `stripeSubscriptionId`
+- Monetary breakdown in major units: `amountSubtotal`, `amountTax`, `amountShipping`, `amountDiscount`, `amountTotal`, `amountRefunded`, `currency`, `promoCode`
+- Line items (`items[]`), buyer details (`customerEmail`, `customerName`, `customerPhone`, `shippingDetails`), `customFields` (key-value map `Record<string, string> | null`), `marketingConsent` (`'opt_in' | 'opt_out' | null`), `recoveryUrl` (populated for abandoned/expired recovery flows when enabled), `createdAt`, and `updatedAt`
+- Never pass `projectId` to `getOrder`; project and scope are derived automatically from the active runtime context.
 
-Typical response fields:
-- `checkoutSessionId`
-- `sessionStatus`
-- `paymentStatus`
-- `paymentIntentId`
-- `metadata`
-- `orderId`
-- `orderStatus`
-- `lineItems`
-- `order`
+### 5) Customer Order History (`getOrderHistory`)
 
-Notes:
-- Session lookup is scoped to the current project/runtime context.
-- If the session is unknown for the current project scope, the method throws.
+```typescript
+const history = await ctx.orders.getOrderHistory({
+    customerEmail: ctx.user.email, // inferred from ctx.user.email when omitted
+    limit: 25
+});
 
-### 5) Refund a Payment
+// Aliases:
+const ordersList = await ctx.orders.listOrders({ customerEmail: ctx.user.email });
+const sameHistory = await ctx.orders.history({ customerEmail: ctx.user.email });
+```
+
+### 6) Refund a Payment
 
 ```typescript
 const refund = await ctx.orders.refund({
     paymentIntentId: 'pi_3PabcXYZ123',
-    amount: 19.99,                        // decimal amount in major units
-    connectedAccountId: 'acct_123...'    // optional, required if payment was connected
+    amount: 19.99 // decimal amount in major units
 });
 
-// Alias also supported:
-const sameRefund = await ctx.orders.refundPayment({ ...samePayload });
+// Alias:
+const sameRefund = await ctx.orders.refundPayment({ paymentIntentId: 'pi_3PabcXYZ123', amount: 19.99 });
 ```
 
-Required fields:
-- `paymentIntentId`
-- `amount` (must be greater than zero)
+Notes:
+- Only payments captured through this project's `ctx.orders.checkout` can be refunded, and funds automatically return through the charged connected account.
+- If `connectedAccountId` is passed, it must match the account that originally processed the payment.
 
-Returns:
-- `success` (boolean)
-- `refundId`
-- `status`
+### 7) Hardware POS Reader Setup
 
-### 6) Create Terminal Connection Token
+- `ctx.orders.createTerminalConnectionToken({ connectedAccountId?, locationId? })` -> returns `{ secret }` for frontend `@stripe/terminal-js`.
+- `ctx.orders.registerTerminalReader({ registrationCode, label, locationId?, connectedAccountId? })` -> returns `{ id, deviceType, serialNumber, status }`.
+- `ctx.orders.listTerminalReaders({ connectedAccountId?, locationId? })` -> returns registered readers for the project/account.
 
-Generates a short-lived Connection Token required by the frontend Stripe Terminal JS SDK to establish communication with Wi-Fi/Ethernet readers.
+#### Web App (Browser POS) Hardware Rules
 
-```typescript
-const tokenResponse = await ctx.orders.createTerminalConnectionToken({
-    connectedAccountId: 'acct_123...'    // optional, required for connected accounts
-});
-```
-
-Returns:
-- `secret` (string) — The connection token secret to pass to the frontend SDK.
-
-### 7) Register Terminal Reader
-
-Registers a new physical Stripe Terminal reader device to the project or location.
-
-```typescript
-const reader = await ctx.orders.registerTerminalReader({
-    registrationCode: 'simplicity-is-great',
-    label: 'Counter 1',
-    locationId: 'tmpl_123...',            // optional
-    connectedAccountId: 'acct_123...'    // optional
-});
-```
-
-Required fields:
-- `registrationCode`
-- `label`
-
-Returns:
-- `id` (string) — The registered reader ID.
-- `deviceType` (string)
-- `serialNumber` (string)
-- `status` (string)
-
-## In-Person Payments & Hardware Selection (Stripe Terminal)
-
-*(Official Stripe Terminal Hardware & API Guidance as of August 2026)*
-
-When users build restaurant POS, cafes, or retail applications requiring in-person card and contactless payments, recommend the appropriate [Stripe Terminal](https://stripe.com/terminal) smart reader:
-
-### Device Recommendation Matrix
-
-| Scenario / Workflow | Recommended Reader | Connectivity | Why / Key Features |
+| Scenario | Recommended Reader | Connectivity | Key Notes |
 | :--- | :--- | :--- | :--- |
-| **Standard Countertop / Register POS** | **[BBPOS WisePOS E](https://stripe.com/terminal/wisepose)** | Wi-Fi / Ethernet dock | Most popular for restaurant & retail counters. 5" touchscreen, customer tipping & line-item display. Connects directly to web browser apps over cloud. |
-| **High-Volume Countertop** | **[Stripe Reader T600](https://stripe.com/terminal/t600)** | Wi-Fi / Ethernet | Countertop smart reader with vibrant display and PIN pad for fast register checkout. |
-| **Table-side / Floor Checkout** | **[Stripe Reader S700](https://stripe.com/terminal/s700)** | Wi-Fi | Handheld Android smart reader with 5.5" screen. Waitstaff can bring device to tables for ordering and payment. Supports running custom POS apps directly. |
-| **Mobile / Outdoor / Anywhere** | **[Stripe Reader S710](https://stripe.com/terminal/s710)** | Cellular + Wi-Fi | Smart handheld reader with cellular 4G connectivity for food trucks, patios, or markets. |
-| **Physical Receipt Printing** | **[Verifone V660p](https://stripe.com/terminal/v660p)** | Wi-Fi / Cellular | Handheld smart reader with a **built-in thermal printer** for paper dining receipts. |
-| **Self-Service Kiosk / Drive-Thru** | **[Verifone UX700](https://stripe.com/terminal/ux700)** | Ethernet / Wi-Fi | Weatherproof unattended smart reader for outdoor kiosks and self-ordering stations. |
-| **Low-Cost Bluetooth** *(Mobile App Only)* | **[Stripe Reader M2](https://stripe.com/terminal/m2)** | Bluetooth | Budget reader (~$59). *Requires a native iOS/Android mobile app; cannot be controlled directly from a web browser.* |
-| **Contactless Phone-to-Phone** *(Mobile App Only)* | **[Tap to Pay](https://stripe.com/terminal/tap-to-pay)** | Phone NFC | Turn iPhone or Android into a reader without extra hardware. *Requires native mobile app.* |
-
-Full directory: [Stripe Terminal Devices](https://stripe.com/terminal/devices) | Setup Guide: [Stripe Terminal Documentation](https://stripe.com/docs/terminal)
-
-### Web App (Browser POS) Compatibility Rule
-- **Web applications (browser) MUST use Internet-connected Smart Readers** (WisePOS E, S700/S710, T600, V660p). Web browsers communicate with readers via the Stripe Cloud API / `@stripe/terminal-js` SDK without needing Bluetooth pairing.
-- **Bluetooth readers (Stripe Reader M2) and Tap to Pay are unsupported in web browsers** and require native mobile apps.
-
-## Additional Examples
-
-### Subscription checkout with monthly billing
-
-```typescript
-const subscriptionCheckout = await ctx.orders.checkout({
-    mode: 'subscription',
-    successUrl: '/billing/success',
-    cancelUrl: '/billing/cancel',
-    customerEmail: 'subscriber@example.com',
-    metadata: { planId: 'pro-monthly', source: 'upgrade-modal' },
-    lineItems: [
-        {
-            name: 'Pro Monthly',
-            unitAmount: 29.0,
-            currency: 'usd',
-            quantity: 1,
-            recurringInterval: 'month',
-            recurringIntervalCount: 1
-        }
-    ]
-});
-```
-
-### Post-checkout fulfillment using session metadata
-
-```typescript
-export async function finalizeOrder(ctx, { sessionId }) {
-    if (!sessionId) {
-        throw new Error('sessionId is required');
-    }
-
-    const session = await ctx.orders.getSession(sessionId);
-    if (session.paymentStatus !== 'paid') {
-        return { fulfilled: false, reason: 'payment_not_completed' };
-    }
-
-    const orderId = session.metadata?.orderId ?? session.orderId;
-    if (!orderId) {
-        throw new Error('Missing orderId metadata for fulfillment');
-    }
-
-    await ctx.db.collection('orders').updateOne(
-        { id: orderId },
-        {
-            $set: {
-                status: 'PAID',
-                checkoutSessionId: session.checkoutSessionId,
-                paidAt: new Date().toISOString()
-            }
-        },
-        { upsert: false }
-    );
-
-    return { fulfilled: true, orderId };
-}
-```
-
-## ACH and Asynchronous Payments
-
-The platform supports both card payments and ACH (US Bank Account) transfers. 
-
-Unlike credit cards, ACH payments are **asynchronous** and can take 3–5 business days to clear:
-- During checkout, when the hosted checkout session completes, the payment intent status will be `processing` and `paymentStatus` will not yet be `paid`.
-- You **must not** assume the order is paid or fulfill resources immediately upon session completion. Always verify that `session.paymentStatus === 'paid'` (as shown in the fulfillment example above).
-- The platform automatically processes the `payment_intent.succeeded` webhook when the bank transfer clears, and updates the order status to `paid` in the database.
-- If the payment fails (e.g., due to insufficient funds), the platform handles the `payment_intent.payment_failed` webhook and updates the order status to `failed`.
-
-## Multi-Tenant / Marketplace Patterns (Stripe Connect)
-
-For platforms like marketplaces or rental portals where transactions must be routed dynamically to different sub-merchant or landlord bank accounts, you should implement the following multi-tenant architecture pattern.
-
-### 1. Landlord / Sub-Merchant Onboarding
-Store the onboarding information in a collection like `bank_accounts`:
-```typescript
-interface BankAccount {
-    userId: string;
-    label: string;
-    accountId: string;               // Stripe Connect account ID
-    pendingOnboardingUrl: string | null;
-    status: 'active' | 'pending';
-}
-```
-
-#### A. Generating/Resuming the Onboarding Link
-When a user begins bank onboarding, check if they already have an active onboarding session URL. If they do not, call `ctx.orders.createAdHocOnboardingLink` and persist the URL. This allows them to resume their onboarding session instead of creating duplicate accounts.
-```typescript
-export async function getBankAccounts(ctx: any) {
-    const landlordAccounts = await ctx.db.collection('bank_accounts').find({ userId: ctx.user.id });
-    const enrichedAccounts = [];
-
-    for (const acc of landlordAccounts) {
-        let paymentsEnabled = true;
-        let onboardingUrl = acc.pendingOnboardingUrl;
-
-        // Skip querying Stripe if it is a mock/local testing account
-        if (acc.accountId && !acc.accountId.startsWith('acct_mock_')) {
-            try {
-                const statusRes = await ctx.orders.getStatus({ connectedAccountId: acc.accountId });
-                paymentsEnabled = statusRes?.status?.paymentsEnabled ?? false;
-
-                if (!paymentsEnabled) {
-                    // Generate and cache a new onboarding link if not already cached
-                    if (!onboardingUrl) {
-                        const linkRes = await ctx.orders.createAdHocOnboardingLink({
-                            email: ctx.user.email,
-                            connectedAccountId: acc.accountId, // Pass existing ID to resume instead of creating duplicate accounts
-                            returnUrl: `/properties?onboarding=success`,
-                            refreshUrl: `/properties?onboarding=refresh`,
-                            businessName: acc.label
-                        });
-                        onboardingUrl = linkRes?.onboardingUrl || null;
-                        if (onboardingUrl) {
-                            await ctx.db.collection('bank_accounts').update(acc.id, {
-                                ...acc,
-                                pendingOnboardingUrl: onboardingUrl
-                            });
-                        }
-                    }
-                } else {
-                    // Account is active - clear any stale pending URL
-                    if (acc.pendingOnboardingUrl) {
-                        await ctx.db.collection('bank_accounts').update(acc.id, {
-                            ...acc,
-                            pendingOnboardingUrl: null
-                        });
-                    }
-                    onboardingUrl = null;
-                }
-            } catch (err) {
-                console.error('Failed to get Stripe Connect status:', err);
-            }
-        }
-
-        enrichedAccounts.push({ ...acc, paymentsEnabled, onboardingUrl });
-    }
-    return enrichedAccounts;
-}
-```
-
-#### B. Offline & Local Developer Testing Mode
-To ensure the app can be tested locally and offline without active Stripe credentials, implement a **mock account prefix** check (e.g. checking if the account ID starts with a mock prefix like `acct_landlord_` or `acct_mock_`).
-- Bypasses active status checks (defaults them to `true`).
-- Prevents passing the mock `connectedAccountId` payload to Stripe during checkouts to avoid crashes.
-
-### 2. Multi-Tenant Checkout Routing
-When creating the checkout session, retrieve the recipient's `connectedAccountId` from the database. If it is a real account (i.e. does not start with your mock prefix), pass it as `connectedAccountId` in the checkout configuration.
-```typescript
-const destinationAccountId = property.bankAccountId; // retrieved from DB
-
-const checkoutParams: any = {
-    mode: 'payment',
-    successUrl: `/rent-success?session_id={CHECKOUT_SESSION_ID}&status=success`,
-    cancelUrl: '/rent-success?status=cancel',
-    customerEmail: ctx.user.email,
-    metadata: {
-        leaseId: lease.id,
-        bankAccountId: destinationAccountId
-    },
-    lineItems: [
-        {
-            name: `Rent Payment - Unit ${lease.unit}`,
-            unitAmount: rentAmount,
-            currency: 'usd',
-            quantity: 1
-        }
-    ]
-};
-
-// Route payout dynamically to Stripe Connect account unless it's a local mock account
-if (destinationAccountId && !destinationAccountId.startsWith('acct_mock_')) {
-    checkoutParams.connectedAccountId = destinationAccountId;
-}
-
-const checkout = await ctx.orders.checkout(checkoutParams);
-return { checkoutUrl: checkout.checkoutUrl };
-```
-
-### 3. Payment Verification & Deduplication
-When the checkout session redirects the user back to the application, the frontend should hit a backend validation handler. To prevent double-fulfillment and handle races between redirect and Stripe webhooks, perform **deduplication** by checking the DB for the checkout session ID.
-
-```typescript
-export async function finalizePayment(ctx: any, { sessionId }: { sessionId: string }) {
-    if (!sessionId) throw new Error('sessionId is required');
-
-    // 1. Deduplication check
-    const existing = await ctx.db.collection('transactions').findOne({ stripeCheckoutSessionId: sessionId });
-    if (existing) {
-        return { success: true, alreadyProcessed: true, status: existing.status };
-    }
-
-    // 2. Fetch fresh checkout session details
-    const session = await ctx.orders.getSession(sessionId);
-    if (session.sessionStatus !== 'complete') {
-        return { success: false, reason: 'payment_not_completed' };
-    }
-
-    // 3. Determine status (support both card instant 'paid' and ACH asynchronous 'processing')
-    const amount = Number(session.amountTotal);
-    const isPaid = session.orderStatus === 'paid' || session.paymentStatus === 'paid';
-    const paymentStatus = isPaid ? 'paid' : 'processing';
-
-    // 4. Record the transaction under the manager/sub-merchant's ID
-    const managerId = session.metadata?.managerId;
-    await ctx.db.collection('transactions').add({
-        userId: managerId,
-        amount,
-        stripeCheckoutSessionId: sessionId,
-        status: paymentStatus,
-        createdAt: new Date().toISOString()
-    });
-
-    // 5. Update application state if fully paid
-    if (paymentStatus === 'paid') {
-        // fulfill the resources/update balances
-    }
-
-    return { success: true, status: paymentStatus };
-}
-```
+| Countertop / Register POS | **BBPOS WisePOS E** | Wi-Fi / Ethernet | 5" touchscreen, cloud API over web browsers |
+| High-Volume Countertop | **Stripe Reader T600** | Wi-Fi / Ethernet | Vibrant countertop smart reader |
+| Table-side Handheld | **Stripe Reader S700 / S710** | Wi-Fi / 4G Cellular | Handheld smart readers for floor or mobile POS |
+| Built-in Paper Receipts | **Verifone V660p** | Wi-Fi / Cellular | Integrated thermal receipt printer |
+| Kiosk / Drive-Thru | **Verifone UX700** | Ethernet / Wi-Fi | Unattended weatherproof smart reader |
+| Native Mobile Only | **Stripe Reader M2 / Tap to Pay** | Bluetooth / NFC | Unsupported in browser web apps |
 
 ## Scope + Key Selection
 
-`ctx.orders` runs in the active runtime scope for the current request.
-The platform resolves the effective scope automatically.
+`ctx.orders` always runs in the active runtime scope (`DEV`, `STAGING`, or `PROD`, plus preview branch scope). Key mode (`TEST` or `LIVE`) is resolved automatically server-side so test transactions never hit live Stripe accounts.
 
-Stripe key mode is selected server-side:
-- Key mode is resolved by platform runtime context.
+## Failure Modes & Recommended Flow
 
-This allows one project to keep separate test/live connected account IDs across scopes.
-
-## Failure Modes (important)
-
-- If connected account is missing for the selected key mode, checkout returns a configuration error.
-- If connected account is not fully enabled yet (`paymentsEnabled=false`), checkout is rejected.
-- `ctx.orders.enablePayments(...)` and `ctx.orders.checkout(...)` require request context so runtime can determine the current site origin for safe redirects. Use them inside exported backend handlers that are invoked by frontend requests.
-- If required fields are missing, methods throw with descriptive errors.
-
-## Recommended Flow
-
-1. Call `ctx.orders.enablePayments(...)` from owner settings.
-2. Redirect owner to `onboardingUrl`.
-3. Poll `ctx.orders.getStatus(...)` until `paymentsEnabled=true`.
-4. Call `ctx.orders.checkout(...)` when buyer starts payment.
-5. Redirect buyer to returned `checkoutUrl`.
-6. In post-checkout backend handlers, call `ctx.orders.getSession(sessionId)` and use session metadata/order details to complete fulfillment.
-
+- Missing connected account or `paymentsEnabled = false` rejects `checkout` with a setup error.
+- Passing a `connectedAccountId` that does not belong to this project in the active mode throws `This project has no Stripe account with that ID in TEST mode.` (or `LIVE`).
+- Cross-origin redirect URLs (`successUrl`, `cancelUrl`, `returnUrl`, `refreshUrl`) are rejected; prefer relative paths.
+- Recommended flow: `enablePayments` -> redirect owner to `onboardingUrl` -> poll `getStatus` -> `checkout` -> redirect buyer to `checkoutUrl` -> verify via `getSession` / `getOrder`.

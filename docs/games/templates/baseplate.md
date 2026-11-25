@@ -562,14 +562,15 @@ import * as gamePlace from "../../server/game/place"
 export function GamePage() {
   const container = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
+  const [booting, setBooting] = useState(true)
   const [problem, setProblem] = useState<string | null>(null)
+  const shellConfig = (gamePlace as { shell?: GameShellConfig }).shell
   useEffect(() => {
     let dispose: (() => void) | null = null
     let gone = false
     void (async () => {
       await RAPIER.init()
       if (gone || !canvas.current || !container.current) return
-      const shellConfig = (gamePlace as { shell?: GameShellConfig }).shell
       const shell = await mountGameShell({
         canvas: canvas.current,
         container: container.current,
@@ -584,17 +585,35 @@ export function GamePage() {
         },
       })
       if (gone) shell.dispose()
-      else dispose = () => shell.dispose()
-    })().catch((error: unknown) => setProblem(error instanceof Error ? error.message : String(error)))
+      else {
+        dispose = () => shell.dispose()
+        setBooting(false)
+      }
+    })().catch((error: unknown) => {
+      setBooting(false)
+      setProblem(error instanceof Error ? error.message : String(error))
+    })
     return () => {
       gone = true
       dispose?.()
     }
   }, [])
   return (
-    <div ref={container} className="relative h-svh w-full select-none overflow-hidden bg-black">
+    <div ref={container} className="relative h-svh w-full select-none overflow-hidden bg-[#090d18]">
       <canvas ref={canvas} className="block h-full w-full" />
-      {problem && <div className="absolute inset-x-0 top-4 z-30 mx-auto w-fit max-w-[90%] rounded-lg bg-red-600 px-4 py-2 text-sm text-white">{problem}</div>}
+      {booting && !problem && (
+        <div className="pointer-events-none absolute inset-0 z-40 flex flex-col items-center justify-center bg-[#090d18] px-6 text-center text-slate-100">
+          <div className="w-full max-w-md rounded-2xl border border-slate-700/40 bg-slate-900/90 px-7 py-6 shadow-2xl">
+            <h2 className="text-2xl font-extrabold tracking-tight">{shellConfig?.title || "Loading Game"}</h2>
+            {shellConfig?.subtitle && <p className="mt-1.5 text-sm text-slate-400">{shellConfig.subtitle}</p>}
+            <div className="mt-5 h-2 w-full overflow-hidden rounded-full bg-slate-700/40">
+              <div className="h-full w-1/4 animate-pulse rounded-full bg-gradient-to-r from-sky-400 to-indigo-500" />
+            </div>
+            <p className="mt-3 text-xs font-medium text-slate-300">Initializing physics engine...</p>
+          </div>
+        </div>
+      )}
+      {problem && <div className="absolute inset-x-0 top-4 z-50 mx-auto w-fit max-w-[90%] rounded-lg bg-red-600 px-4 py-2 text-sm text-white">{problem}</div>}
     </div>
   )
 }

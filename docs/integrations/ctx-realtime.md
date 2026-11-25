@@ -1,5 +1,10 @@
 # ctx.realtime - Real-Time WebSocket API
 
+Private `notify` signals use environment-scoped pub/sub delivery across runtime
+instances, then WebSockets to browsers. No message backlog is stored;
+reconnecting clients refetch their authorized state. Public channels and room
+delivery retain their existing path.
+
 The realtime API enables bidirectional communication between the browser
 and server handlers via WebSockets.
 
@@ -16,7 +21,7 @@ Use ctx.realtime (`sdk.onRealtime`) when:
 ## Architecture
 
 ```
-Browser ←→ Realtime WebSocket Gateway ←→ Platform Message Bus ←→ Server Handlers
+Browser ←→ WebSocket (SiteMills runtime) ←→ backend handlers (server/handlers/*.ts)
 ```
 
 - Browsers connect via a lightweight WebSocket client library
@@ -27,44 +32,22 @@ Browser ←→ Realtime WebSocket Gateway ←→ Platform Message Bus ←→ Ser
 
 `await ctx.realtime.notify(recipient, event, data?)` delivers only to WebSocket
 sessions subscribed to `__private__` with a matching verified identity, project,
-code branch and data scope, and an unexpired token. Recipients are
-`user:<runtime user ID>` or `guest:<ctx.visitor.id>`. Guest identity remains
-distinct from login. Resolve the recipient from authorized server records, never
-from an unchecked browser payload.
-
-```typescript
-// Backend: persist first, then send a small invalidation signal
-await ctx.db.collection('workspaces').updateOne({ id: workspaceId }, { $set: changes });
-await ctx.realtime.notify('user:' + ownerUserId, 'workspaceChanged', {});
-```
-
-```typescript
-// Frontend: re-fetch the authorized snapshot on invalidation and after (re)subscribing
-import { connect, subscribe, on, onStatus } from '../api/realtime-client.js';
-
-await connect();
-subscribe('__private__');
-on('__private__', 'workspaceChanged', () => refreshWorkspace());
-onStatus(({ state, channel }) => {
-    if (state === 'subscribed' && channel === '__private__') refreshWorkspace();
-});
-```
+code branch and data scope, and an unexpired token. Recipients are `user:<runtime
+user ID>` or `guest:<ctx.visitor.id>`. Guest identity remains distinct from login.
+Resolve the recipient from authorized server records, never an unchecked browser payload.
 
 Use this for private inbox/workspace updates. Ordinary channel names such as
 `admin:inbox` or `account:alice` are **not access controls**; never broadcast private
-messages on those channels. `notify` rejects missing or invalid recipients
-instead of falling back to a broadcast. Private notifications are delivered over
-WebSockets only (not over the SSE client). No backlog is kept: reconnecting
-clients should re-fetch their authorized state.
+messages on those channels. `__private__` rejects missing/invalid recipient routing
+instead of falling back to broadcast. This API does not currently deliver over SSE.
 
 Persist first, then send a small invalidation (for example `workspaceChanged`, `{}`).
-The frontend re-fetches its authorized snapshot. The browser client retains
-subscriptions across reconnects and exposes `onStatus` (`connected`,
-`disconnected`, `subscribed`); fetch after a `subscribed` acknowledgment and on
-returning to the tab. Keep a manual refresh action and preserve unsaved drafts.
-Delivery is best-effort, not a substitute for database persistence. Guest HTTP
-mutations still use cookie verification; this does not authorize guest WebSocket
-writes or let a channel subscription grant project membership.
+The frontend re-fetches its authorized snapshot. The framework browser client retains
+subscriptions across reconnects and exposes `onStatus`; fetch after a `subscribed`
+acknowledgment and on returning to the tab. Keep a manual refresh action and preserve
+unsaved drafts. Delivery is best-effort, not a substitute for database persistence.
+Guest HTTP mutations still use cookie verification; this does not authorize guest
+WebSocket writes or let a channel subscription grant project membership.
 
 Web Push (`ctx.push`) is separate: optional, permission-based delivery for suspended
 or closed apps. A live WebSocket cannot replace that browser/OS facility.
@@ -151,15 +134,6 @@ await ctx.realtime.sendToUser('game', 'user@email.com', 'yourTurn', {
 await ctx.realtime.sendToUser('user:' + targetUserId, targetUserId, 'matchFound', { roomId });
 ```
 
-### notify(recipient, event, data?)
-Private delivery to a verified `user:<id>` or `guest:<visitorId>` recipient whose
-browser is subscribed to `__private__`. See
-[Private account and guest updates](#private-account-and-guest-updates).
-
-```typescript
-await ctx.realtime.notify('user:' + ownerUserId, 'inboxChanged', {});
-```
-
 ## Frontend: Connecting to Realtime
 
 The frontend uses either the pre-built `api/realtime-client.js` (WebSockets) or `api/sse-client.js` (Server-Sent Events) framework file.
@@ -169,7 +143,7 @@ Just import from them.
 ### WebSockets (`api/realtime-client.js`)
 
 ```typescript
-import { connect, subscribe, unsubscribe, on, send, disconnect } from '../api/realtime-client.js';
+import { connect, subscribe, on, send, disconnect } from '../api/realtime-client.js';
 
 // Connect once on app startup
 await connect();
@@ -191,15 +165,14 @@ unsubscribe('chat');
 disconnect();
 ```
 
-The client also exports `off(channel, event, callback)` and `onStatus(callback)`.
-For the full API, see `api/realtime-client.js` in your project.
+For full API reference: `read_file("api/realtime-client.js")`
 
 ### Server-Sent Events (SSE) (`api/sse-client.js`)
 
-Provides a drop-in replacement that uses EventSource for unidirectional server-to-client streaming, and HTTP POST requests for client-to-server messaging. Useful when WebSockets are blocked or unnecessary:
+Provides a drop-in replacement that uses EventSource for unidirectional server-to-client streaming, and fallback HTTP POST requests for client-to-server messaging. Useful when WebSockets are blocked or unnecessary:
 
 ```typescript
-import { connect, subscribe, unsubscribe, on, send, disconnect } from '../api/sse-client.js';
+import { connect, subscribe, on, send, disconnect } from '../api/sse-client.js';
 
 // Connect once on app startup
 await connect();
@@ -218,7 +191,7 @@ unsubscribe('chat');
 disconnect();
 ```
 
-For the full API, see `api/sse-client.js` in your project.
+For full API reference: `read_file("api/sse-client.js")`
 
 ## Frontend Usage Example (Chat)
 
@@ -339,7 +312,7 @@ sdk.onRealtime('ops-admin', async (ctx, message) => {
         return;
     }
 
-    const resource = 'channels:ops-admin'; // project-relative; the platform scopes it automatically
+    const resource = 'channels:ops-admin';
 
     await ctx.permissions.require({
         subjectId: user.id,

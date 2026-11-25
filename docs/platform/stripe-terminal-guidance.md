@@ -32,7 +32,7 @@ Explore the full catalog at [Stripe Terminal Devices Directory](https://stripe.c
 
 ## 2. Web App (Browser POS) Compatibility Rules
 
-SiteMills web applications (running in standard web browsers across iPads, Macs, Windows PCs, and Android tablets) follow these strict rules:
+SiteMills web applications (running on React / standard web browsers across iPads, Macs, Windows PCs, and Android tablets) follow these strict rules:
 
 ### A. Web Browsers MUST Use Internet-Connected / Smart Readers
 - **Supported for Web POS**: **BBPOS WisePOS E**, **Stripe Reader S700 / S710**, **Stripe Reader T600**, **Verifone V660p**.
@@ -88,8 +88,8 @@ SiteMills is designed from the ground up as a **multi-tenant platform** using St
 ### A. Do Project Owners or Tenants Need Stripe API Keys?
 **No. Neither project owners nor sub-tenants ever manage raw Stripe API keys.**
 * SiteMills operates as a central **Stripe Connect Platform**. The platform securely holds the platform Stripe API keys (`sk_live_...` and `sk_test_...`) in the backend infrastructure.
-* Individual project owners (e.g. a restaurant owner creating an app on SiteMills) connect their Stripe account via the **SiteMills Builder / Dashboard settings** (or via `ctx.orders.enablePayments`).
-* Sub-tenants in nested marketplaces (e.g. 10 independent food stalls inside a food-court app) connect dynamically via `ctx.orders.createAdHocOnboardingLink(...)`.
+* Individual project owners (e.g. a restaurant owner creating an app on SiteMills) connect their Stripe account via the **SiteMills Builder / Dashboard settings** (or via `ctx.orders.enablePayments({ ownerEmail: ctx.user.email, ... })`).
+* Sub-tenants in nested marketplaces (e.g. 10 independent food stalls inside a food-court app) connect dynamically via `ctx.orders.createAdHocOnboardingLink({ email: ctx.user.email, ... })`.
 * In all cases, the platform handles authentication, webhook verification, and payment routing via Stripe Connect without exposing keys to users or frontends.
 
 ---
@@ -113,8 +113,8 @@ SiteMills is designed from the ground up as a **multi-tenant platform** using St
 
 #### Model 2: Nested Sub-Merchant Multi-Tenancy (Food Court / Multi-Vendor Marketplace)
 * **Who it is for**: Platforms where one SiteMills app hosts multiple distinct restaurants or vendors who each receive their own payouts.
-* **How it works**: Vendors onboard dynamically via `ctx.orders.createAdHocOnboardingLink(...)`, which returns a `connectedAccountId` saved to your database (`ctx.db`).
-* **Code in `ctx.orders`**: Pass the specific vendor's `connectedAccountId`:
+* **How it works**: Signed-in vendors onboard dynamically via `ctx.orders.createAdHocOnboardingLink({ email: ctx.user.email, ... })` (up to 20 new seller accounts per user per site per day; only that seller can resume onboarding), which returns a `connectedAccountId` recorded for this project and saved to your database (`ctx.db`).
+* **Code in `ctx.orders`**: Pass the specific vendor's `connectedAccountId` (must be one of this project's recorded accounts in the active mode):
   ```typescript
   // 1. Fetch connection token scoped to this specific vendor
   const token = await ctx.orders.createTerminalConnectionToken({
@@ -137,7 +137,7 @@ Physical smart readers (BBPOS WisePOS E, Stripe Reader S700, etc.) **do not have
 **The environment where the pairing code is registered determines whether the reader is in Test Mode or Live Mode:**
 
 1. **Test Mode (Sandbox / Development)**:
-   * When your app runs in `DEV` or `PREVIEW` environment, SiteMills automatically uses the platform's **Test Secret Key** (`sk_test_...`).
+   * When your app runs on the Working Draft or in `DEV`, SiteMills automatically uses the platform's **Test Secret Key** (`sk_test_...`).
    * When you register a 3-word pairing code, Stripe binds that physical device in **Test Mode**. The reader screen will show test mode and accept Stripe test cards.
 2. **Live Mode (Production)**:
    * When your app runs in `PRODUCTION`, SiteMills automatically uses the platform's **Live Secret Key** (`sk_live_...`).
@@ -163,7 +163,7 @@ Because Smart Readers (WisePOS E, S700, T600) communicate directly with the Stri
 ### Architecture Diagram
 
 ```
-[ Cashier clicks 'Charge $25.00' in Web POS ]
+[ Cashier clicks 'Charge $25.00' in React POS ]
                        │
                        ▼
              [ Backend API Handler ]
@@ -195,9 +195,9 @@ Generates a short-lived Connection Token required by the frontend Stripe Termina
 ```typescript
 // server/handlers/terminal.ts
 export async function getTerminalConnectionToken(ctx: any) {
-  const tokenResponse = await ctx.orders.createTerminalConnectionToken({
-    connectedAccountId: ctx.user?.connectedAccountId // optional, for multi-merchant setups
-  });
+  // The project's own connected account is used by default. Pass connectedAccountId only
+  // for multi-merchant setups, read from your own trusted records (never from ctx.user).
+  const tokenResponse = await ctx.orders.createTerminalConnectionToken({});
   return { secret: tokenResponse.secret };
 }
 ```

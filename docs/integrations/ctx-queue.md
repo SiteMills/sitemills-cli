@@ -3,10 +3,13 @@
 Use `ctx.queue` to offload work asynchronously from request handlers.
 
 Platform behavior:
-- `ctx.queue.enqueue(...)` stores the message, then dispatches it to the platform message queue.
-- The runtime invokes your target handler route in your backend.
+- `ctx.queue.enqueue(...)` stores the message and dispatches it through the background queue.
+- The runtime invokes your target handler route in the SiteMills Sandbox.
 - Handler output controls acknowledgement (`ack`) vs requeue (`nack`).
 - Retry attempts are bounded by `maxRetries` and terminal failures move to dead-letter status.
+- A run cut off by a platform restart (for example during an update) runs again as a retry, counting toward `maxRetries`; one found more than a day later is dead-lettered with reason `interrupted` instead. So a handler can run more than once for the same message: make it safe to repeat, for example by checking whether the work was already done.
+- Each run of a handler, retries included, costs 0.005 runtime credits, like a backend call.
+- While the project is out of runtime credits, messages wait without using up a retry, and run within about five minutes of credits being added.
 - Queue operations emit analytics metrics under event type `queue_usage`.
 
 ## Methods
@@ -135,7 +138,8 @@ When your `handlerRoute` is invoked, the payload has this shape:
 A message reaches dead-letter status when:
 - handler returns `ctx.queue.nack({ requeue: false, ... })`, or
 - retries exceed `maxRetries`, or
-- queue publish/retry publish fails terminally.
+- queue publish/retry publish fails terminally, or
+- it is still waiting for runtime credits 35 days after it was queued (reason `out_of_runtime_credits`).
 
 Dead-lettered messages are persisted with status `DEAD_LETTER` and reason metadata.
 
@@ -146,6 +150,7 @@ Queue integration emits metrics with `eventType = queue_usage`:
 - `queue_message_acked`
 - `queue_message_nacked`
 - `queue_message_retried`
+- `queue_message_held` (waiting for runtime credits)
 - `queue_message_dead_lettered`
 
 Use the project Analytics tab and select event type `queue_usage` to chart queue usage by event name.

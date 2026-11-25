@@ -2,10 +2,9 @@
 
 The backend runtime exposes `ctx.permissions` for role-based authorization.
 
-Transport path:
-- `ctx.permissions.*` in backend handler
-- routed through the platform Permissions integration service
-- evaluated against project-scoped RBAC policies
+Enforcement routing:
+- `ctx.permissions.*` in a server handler
+- Evaluated against project RBAC permission definitions
 
 ## Enforcement Model
 
@@ -158,7 +157,7 @@ export async function deleteLeague(ctx, { leagueId }) {
 - Use `ctx.permissions.check` or `ctx.permissions.require` inside backend handlers before protected operations.
 - Keep custom app user identifiers in `subjectId` (for example external auth user IDs).
 - Keep resource strings relative (for example `articles:article-123`); the platform handles scoping under the hood.
-- Keep authorization logic centralized in platform RBAC policies rather than ad-hoc per-handler role checks.
+- Keep authorization logic centralized in platform permissions rather than ad-hoc per-handler role checks.
 - Use wildcard patterns intentionally (`read:*`, `manage:*`, etc.) and keep resource paths logical and stable.
 
 ## Failure Modes
@@ -170,18 +169,22 @@ export async function deleteLeague(ctx, { leagueId }) {
 
 ## Website-only role delegation
 
-Use these methods when a website's own administrators (not SiteMills project collaborators) need to assign application roles to members. The existing `assignRole`, `updateAssignment`, `revokeRole`, definition-mutation and bootstrap methods keep their owner/admin requirements.
+Existing platform collaborator permissions and the existing `assignRole`, `updateAssignment`, `revokeRole`, definition-mutation and bootstrap conditions are unchanged.
 
-A project owner creates application roles (non-system roles) and explicitly grants a website superadmin `rbac:assign` on `roles:<roleId>` for each role that person may assign. Grant exact role IDs, not a wildcard. The website must separately guard its member-management handlers so ordinary members cannot reach them.
+A project owner can create application roles (non-system roles) and explicitly grant a website superadmin `rbac:assign` on `roles:<roleId>` for each role that person may assign. Grant exact role IDs, not a wildcard. The website must separately guard its member-management handlers; ordinary admins/residents must not reach them.
 
 ```typescript
-await ctx.permissions.grantWebsiteRole({ subjectId: memberEmail, roleId, scopeResource: '*' });
-await ctx.permissions.updateWebsiteRole(assignmentId, { subjectId: memberEmail, roleId, scopeResource: '*' });
+await ctx.permissions.grantWebsiteRole({subjectId: memberEmail, roleId, scopeResource: '*'});
+await ctx.permissions.updateWebsiteRole(assignmentId, {subjectId: memberEmail, roleId, scopeResource: '*'});
 await ctx.permissions.revokeWebsiteRole(assignmentId);
 ```
 
-- The platform derives the actor and project from the runtime context; do not pass `projectId` or actor fields.
-- Only existing non-system roles can be assigned. Platform/starter roles are rejected, even for an actor with a wildcard permission.
-- Each operation checks `rbac:assign` against that exact role. Updates require authorization for both the old and new roles and cannot change the member's identity.
-- Scope must be the current project's `*`.
-- These operations do not modify SiteMills collaborator access or grant platform administration. Keep project-owner recovery access outside the website's editable role set.
+The platform derives actor and project from trusted runtime context. Only existing non-system roles can be assigned. Each operation checks `rbac:assign` against that exact role; updates require authorization for both old and new roles and cannot change the member's identity. Scope must be the current project's `*`. Platform/starter roles are rejected, even for an actor with a wildcard permission. These operations do not modify Sitemills collaborator access or grant platform administration. Keep project-owner recovery access outside the website's editable role set.
+
+## Custom website property security roles
+
+`ctx.permissions.listSecurityRoles()`, `saveSecurityRole({roleId?,name,grants})`, `deleteSecurityRole({roleId})`, `assignSecurityRole({roleId,email})` and `revokeSecurityRole({assignmentId})` manage custom website property security roles using trusted project and actor context. All five require `eufy:admin` on `integrations:eufy` in the current project. This is an integration-specific delegated API; existing platform role mutation conditions and endpoints are unchanged.
+
+A grant is `{propertyId,permissions:[...]}`. The property ID is the exact 40-character Eufy house ID, not its display name. Supported actions are `view`, `access:list`, `codes:write`, `codes:delete`, `codes:reveal`, `access:rename` and `cameras:view`. Device viewing is included for each selected property. The service creates exact `eufy:property:<action>` permission definitions on `integrations:eufy:properties:<id>`, plus `eufy:manage` for entry to the integration. It cannot create wildcard permissions, `eufy:admin`, platform roles or superadmins. Roles have an internal website-integration marker; this API cannot edit or assign unrelated/system roles. Assignments are restricted to the current project.
+
+Role names are user-defined. An unassigned member receives no property security access; existing ordinary admins also need property grants. Website superadmins should receive the narrowly scoped `eufy:admin` permission through the website's owner-controlled bootstrap. Other superadmin delegation stays in the existing website-role API. No platform collaborator access is conferred. Deleting a custom role removes the rights it grants; multiple assigned custom roles combine their permitted properties/actions. `listSecurityRoles` returns `{roles:[{id,name,grants}],assignments:[{id,roleId,email}]}`.

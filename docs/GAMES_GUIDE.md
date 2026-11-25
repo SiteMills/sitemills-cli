@@ -6,7 +6,7 @@ SiteMills projects can be games. Choose the foundation for your game:
 - **3D games on the SiteMills game engine.** A game here is a Roblox place written in TypeScript: Roblox's classes and services (parts, physics, constraints, characters, tools, GUIs, sounds, data stores, pathfinding), split between server and client as Roblox splits them. Everyone who opens the game plays together in a room, and it plays on phones. Use it for obbies, shooters, racing, strategy, tycoons, simulators and open worlds. This guide is mostly about these.
 - **2D games with Phaser**, in an ordinary SiteMills React project ([section 8](#8-2d-games-with-phaser)).
 
-Games can use the **SiteMills game asset library**: about 68,000 CC0 models, sprites, tiles, sound effects and fonts, plus hand-picked kits.
+Games can use the **SiteMills game asset library**: over 80,000 CC0 models, PBR materials, sprites, tiles, sound effects and fonts, plus hand-picked kits and on-demand material and 3D model generation.
 
 Run `sitemills-cli help games` for a short version of this guide.
 
@@ -107,17 +107,19 @@ The engine is the platform's. Your app's `sitemills.json` names the version it u
 
 | Page | Read it for |
 |---|---|
-| `rounds-and-shell.md` | Title screen, mode picker, server browser, private room codes (`export const shell`) and server round loops (`createRoundLoop`) |
-| `tools-and-prompts.md` | A tool a player holds and clicks with (a blaster, a sword); a button to press on a part |
-| `vehicles.md` | A car, and a fast car driven from the client script |
+| `rounds-and-shell.md` | Title screen, built-in loading screen, Pause menu, settings, minimap, server browser, private room codes (`export const shell`) and server round loops (`createRoundLoop`) |
+| `tools-and-prompts.md` | Held items & weapons (`Tool`, `Grip`, viewmodel ADS/recoil/`Reloading`, 3rd-person rigged-hand attachment & exact tip `Attachment`s); `ProximityPrompt` |
+| `world.md` | Rolling terrain (`FillHeightmap`, `HeightAt`), `MaterialVariant.OrmMap`, `MeshPart` models, animated `modelCharacter`s, and 3-scale outdoor level dressing |
+| `animation.md` | Locomotion stride sync, `Crouching`, `AimPitch`, `SetBonePose`, GPU `MeshPart.Motion` for unrigged creatures/flora, emotes, and tracks |
+| `effects.md` | Golden-hour lighting, `Atmosphere`, flipbook `ParticleEmitter`s, fireworks, waterfalls, muzzle flashes & tracers, lights, decals, and post-processing |
+| `cameras.md` | Over-the-shoulder, chase, top-down, side-on, fixed horror cameras, and cutscenes |
+| `vehicles.md` | Cars, wheel suspension, gears, handbrake, and client-simulated driving |
 | `npcs.md` | NPCs that walk and find paths; crowds; collision groups |
-| `strategy.md` | A game with no avatar: a camera over the map, picking units, orders |
-| `world.md` | Terrain; 3D models from the game asset library; characters drawn as animated models |
-| `animation.md` | Characters' movements: a sword swing or a wave, emotes, turning a joint |
-| `effects.md` | Fire, smoke, particles, explosions and lights; beams, trails, decals and textures |
-| `movers.md` | Knockback, a dash, flying, a hovering platform; thick raycasts |
-| `gui.md` | GUIs that fit any screen, gradients, rich text, notifications, GUIs on parts |
-| `chat.md` | Doing something with chat (it's there without code): commands, announcements |
+| `strategy.md` | RTS / top-down games with no avatar: camera over the map, picking units, highlights, orders |
+| `editables.md` | Procedural `EditableMesh` (`Shapes.sweep`, `extrude`, `lathe`, `box`) and `EditableImage` |
+| `movers.md` | Knockback, dashes, flying, hovering platforms, and shape-casts (`Spherecast`, `Blockcast`) |
+| `gui.md` | Responsive `ScreenGui`s, `BillboardGui`s, `SurfaceGui`s, gradients, rich text, notifications |
+| `chat.md` | Chat channels, commands, announcements, and NPC bubbles |
 
 Where those pages say `agent.gameAssets.search(...)`, that's the SiteMills agent's way to search the asset library. From the CLI, it's `sitemills-cli game-assets search` ([section 6](#6-art-and-sound-from-the-asset-library)).
 
@@ -211,10 +213,34 @@ On the engine, a library file's `url` goes straight into the instance that shows
 | `IMAGE` | A `Decal` or `Texture` on a part's face (`Texture = url`), or a GUI's `ImageLabel` (`Image = url`). | `docs/effects.md`, `docs/gui.md` |
 
 - **Use the URLs as they are.** Library files load on SiteMills sites only: your app's address, its previews and its custom domains. Don't download and re-host them: many models load their textures from the folder next to them.
-- **Keep the art matching:** search inside one pack with `--pack <pack>` (a result's `pack`).
+- **Keep the art matching:** pick **one** `--style` (`low-poly`, `stylized`, `toon`, `realistic`, etc.) — defaulting to vibrant stylized/low-poly for fast loading and 60 FPS on phones unless photorealism is requested — and use `--sheet <file>` + `similar <assetId>` or `--pack <pack>` so every piece shares one cohesive look.
 - **Kits** are hand-picked sets for a genre (`sitemills-cli game-assets kits` lists them, and `sitemills-cli game-assets kit medieval-castle --write server/game/assets.ts` writes one into your game). Engine kits (`medieval-castle`, `fantasy-characters`, `sci-fi`, `track-racing`, `city`, `nature`, `tower-defense`) include `size` (`new Vector3(...asset.size)` for snug grid-aligned `MeshPart`s), character `clips` ready for `modelCharacter(name, asset.url, asset.clips)`, and combat/prop `actions` for `humanoid.LoadAnimation`.
 - **Limits:** every `game-assets` request counts toward your account's Developer API limit (currently 60 a minute), and searches have their own daily allowance (currently 500 a day). When you hit one, the CLI says how long to wait.
 - **License:** everything in the library is CC0 1.0: free to use in any project, no attribution required.
+
+### Generating custom materials and 3D models on demand
+
+When the library doesn't have the exact surface texture or 3D model your game needs, generate one directly into your project:
+
+```bash
+# Seamless PBR material set (color, normal, ORM, roughness, metalness maps)
+sitemills-cli game-assets generate-material "weathered mossy cobblestone" \
+  --project <projectId> --style stylized --resolution 1024
+
+# Custom 3D GLB model (from text or an existing project image via --reference-image)
+sitemills-cli game-assets generate-model "stylized treasure chest" \
+  --project <projectId> --style stylized --height 1.2
+
+# Standing humanoid character with auto-rigged Idle / Walk / Run clips (~2-4 minutes)
+sitemills-cli game-assets generate-model "low-poly medieval knight" \
+  --project <projectId> --style low-poly --height 1.75 --rig
+```
+
+- **Linked project folders:** inside a folder created by `game create`, `export`, or `import`, you can omit `--project` and the CLI reads `.sitemills/project.json` automatically. Otherwise pass `--project <projectId>` (or the project's site address).
+- **Mobile-friendly poly budget:** generated 3D models are grounded, meshopt-compressed, and simplified to **10,000 triangles** by default (pass `--max-triangles <1000..50000>` to override).
+- **Humanoid auto-rigging (`--rig`):** pass `--rig` on `generate-model` to rig a standing humanoid character with `Idle`, `Walk`, and `Run` clips ready for `modelCharacter(name, url, clips)`. Auto-rigging can take 2–4 minutes (the CLI waits up to 5 minutes). Only use `--rig` for standing biped humanoids — omit it for vehicles, animals, weapons, buildings, or static props.
+- **Permissions, caching & quotas:** generation requires the **Owner** or **Developer** role on the target project and uses build credits. Results are saved to the project and cached by prompt and options, so repeating the same request returns the cached asset at no extra cost. Daily generation limits depend on your plan (Free: 5 materials / 3 models; Basic: 15 / 10; Advanced: 30 / 25; Ultra: 100 / 50).
+- **Machine-readable output:** pass `--json` to print the full metadata, URLs, bone count, and `clips` map.
 
 ---
 

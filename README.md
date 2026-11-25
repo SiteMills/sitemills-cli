@@ -471,7 +471,7 @@ Manage background and scheduled jobs defined in `contracts/jobs.json` and implem
 
 ### Game Assets
 
-CC0 game art and sound for SiteMills projects: sprites, tiles, spritesheets, 3D models, sound effects and fonts. The files load on SiteMills sites only (a project's address, its previews and its custom domains). See the [Games Guide](docs/GAMES_GUIDE.md).
+Over 80,000 CC0 game art and sound assets for SiteMills projects — sprites, tiles, spritesheets, PBR materials, 3D models, sound effects and fonts — plus on-demand custom PBR material and 3D model generation. Library files load on SiteMills sites only (a project's address, its previews and its custom domains). See the [Games Guide](docs/GAMES_GUIDE.md).
 
 - **game-assets kits**: List the hand-picked kits, one per genre.
   ```bash
@@ -484,8 +484,26 @@ CC0 game art and sound for SiteMills projects: sprites, tiles, spritesheets, 3D 
   ```
 - **game-assets search**: Search the whole library, best match first.
   ```bash
-  sitemills-cli game-assets search <words> [--kind <kind>] [--pack <pack>] [--limit <n>] [--json]
+  sitemills-cli game-assets search <words> [--kind <kind>] [--style <style>] [--category <cat>] [--pack <pack>] [--sheet <file>] [--limit <n>] [--json]
   sitemills-cli game-assets search robot --kind MODEL
+  ```
+- **game-assets similar**: Find visually matching assets from a search result's asset ID.
+  ```bash
+  sitemills-cli game-assets similar <assetId> [--kind <kind>] [--style <style>] [--sheet <file>] [--limit <n>] [--json]
+  ```
+- **game-assets sheet**: Save a numbered JPEG contact sheet for 1 to 24 asset IDs.
+  ```bash
+  sitemills-cli game-assets sheet <id1> <id2> --out sheet.jpg [--overwrite] [--json]
+  ```
+- **game-assets generate-material**: Generate a seamless PBR texture set (color, normal, ORM, roughness, metalness) and save it to your project (Owner or Developer role required; defaults to the linked `.sitemills/project.json` when `--project` is omitted).
+  ```bash
+  sitemills-cli game-assets generate-material <prompt> [--project <projectId>] [--name <slug>] [--style <style>] [--resolution <512|1024>] [--roughness <0..1>] [--metalness <0..1>] [--normal-strength <0.5..6>] [--no-seamless] [--json]
+  sitemills-cli game-assets generate-material "weathered mossy cobblestone" --project my-game --style realistic
+  ```
+- **game-assets generate-model**: Generate a custom 3D GLB model from text or `--reference-image` and save it to your project. Add `--rig` to auto-rig a standing humanoid character with `Idle`/`Walk`/`Run` clips (takes 2–4 minutes).
+  ```bash
+  sitemills-cli game-assets generate-model [prompt] [--project <projectId>] [--reference-image <key>] [--name <slug>] [--style <style>] [--quality <standard|high>] [--height <m>] [--max-triangles <n>] [--rig] [--json]
+  sitemills-cli game-assets generate-model "low-poly medieval knight" --project my-game --style low-poly --rig
   ```
 
 ### Stripe Payments & In-Person POS Terminal
@@ -578,8 +596,20 @@ How the CLI stays current depends on how you installed it:
 - `--no-indexable`: Disable search engine indexing for the project visibility settings.
 - `--no-update`: Disable automatic update checks for this command invocation.
 - `--force`: Force check and apply updates, ignoring local cache TTL.
-- `--kind <kind>`: Asset kind for `game-assets search` (`IMAGE`, `SPRITESHEET`, `MODEL`, `SOUND`, `FONT`).
+- `--kind <kind>`: Asset kind for `game-assets search` (`IMAGE`, `SPRITESHEET`, `MODEL`, `SOUND`, `FONT`, `ENVIRONMENT`).
 - `--pack <pack>`: Only assets from this pack, for `game-assets search` (a result's `pack`).
+- `--project <id>`: Target project ID or site address (defaults to linked `.sitemills/project.json` for `game-assets generate-material` / `generate-model`).
+- `--style <style>`: Art style for `game-assets search` or generation (`realistic`, `stylized`, `low-poly`, `voxel`, `pixel`, `flat`, `toon`, `hand-drawn`, `sketch`).
+- `--resolution <px>`: Texture size for `game-assets generate-material` (`512` or `1024`, default `1024`).
+- `--roughness <0..1>`: Base PBR roughness for `game-assets generate-material`.
+- `--metalness <0..1>`: Base PBR metalness for `game-assets generate-material`.
+- `--normal-strength <0.5..6>`: Normal map bump strength for `game-assets generate-material` (default `2.5`).
+- `--no-seamless`: Disable toroidal seamless edge blending on `game-assets generate-material`.
+- `--reference-image <key>`: Existing project media image path for image-to-3D on `game-assets generate-model`.
+- `--quality <tier>`: Model detail tier for `game-assets generate-model` (`standard` or `high`).
+- `--height <metres>`: Target standing height in metres for `game-assets generate-model` (`0.1` to `25.0`).
+- `--max-triangles <n>`: Maximum triangle count for `game-assets search` or `generate-model` (`1000` to `50000`).
+- `--rig`: Auto-rig a standing humanoid character with `Idle`/`Walk`/`Run` clips on `game-assets generate-model` (takes 2–4 minutes).
 - `--write <file>`: Write a kit's assets to this file as `GAME_ASSETS` (`game-assets kit`).
 - `--overwrite`: Let `--write` replace an existing file.
 - `--template <id>`: The starter game for `game create` (list them with `game templates`).
