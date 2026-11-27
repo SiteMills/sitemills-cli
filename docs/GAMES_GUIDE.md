@@ -234,10 +234,17 @@ sitemills-cli game-assets generate-model "stylized treasure chest" \
 # Standing humanoid character with auto-rigged Idle / Walk / Run clips (~2-4 minutes)
 sitemills-cli game-assets generate-model "low-poly medieval knight" \
   --project <projectId> --style low-poly --height 1.75 --rig
+
+# Remix/kitbash CC0 or project .glb models, build parametric 3D, or bake animations in headless Blender ($0 credits)
+sitemills-cli game-assets blender-model remix_car.py \
+  --project <projectId> \
+  --input car=https://game-assets.sitemills.com/library/kenney/car-kit/.../race.glb \
+  --name crimson-kart --height 1.3 --auto-orient
 ```
 
 - **Linked project folders:** inside a folder created by `game create`, `export`, or `import`, you can omit `--project` and the CLI reads `.sitemills/project.json` automatically. Otherwise pass `--project <projectId>` (or the project's site address).
-- **Mobile-friendly poly budget:** generated 3D models are grounded, meshopt-compressed, and simplified to **10,000 triangles** by default (pass `--max-triangles <1000..50000>` to override).
+- **Headless Blender (`blender-model`):** runs a sandboxed Blender Python script (`bpy`, `bmesh`, `mathutils`, plus built-in helpers `clear_scene`, `load_glb`, `make_material`, `assign_material`, `recolor`, `kitbash_attach`, `bake_action`, `scene_stats`). Stage up to 4 CC0 library URLs or project `/assets/....glb` paths with repeatable `--input alias=urlOrPath` flags, add `--auto-orient` to rotate non-rigged vehicles/weapons/props so their front faces `-Z`, and pass `--no-animations` to omit exported actions. Free of build credits (except optional `--auto-orient` vision alignment), SHA-256 cached per project, and rate-limited (8/min, 150/day, max 2 concurrent).
+- **Mobile-friendly poly budget:** generated 3D models are grounded, meshopt-compressed, and simplified to **10,000 triangles** by default (`generate-model`, pass `--max-triangles <1000..50000>`) or **30,000 triangles** by default (`blender-model`, pass `--max-triangles <100..100000>`).
 - **Humanoid auto-rigging (`--rig`):** pass `--rig` on `generate-model` to rig a standing humanoid character with `Idle`, `Walk`, and `Run` clips ready for `modelCharacter(name, url, clips)`. Auto-rigging can take 2–4 minutes (the CLI waits up to 5 minutes). Only use `--rig` for standing biped humanoids — omit it for vehicles, animals, weapons, buildings, or static props.
 - **Permissions, caching & quotas:** generation requires the **Owner** or **Developer** role on the target project and uses build credits. Results are saved to the project and cached by prompt and options, so repeating the same request returns the cached asset at no extra cost. Daily generation limits depend on your plan (Free: 5 materials / 3 models; Basic: 15 / 10; Advanced: 30 / 25; Ultra: 100 / 50).
 - **Machine-readable output:** pass `--json` to print the full metadata, URLs, bone count, and `clips` map.

@@ -24,7 +24,6 @@ const result = await ctx.ai.enqueue({
         model: 'gemini-4-hydrogen',     // optional
         enableGoogleSearch: true,       // optional, default false
         temperature: 0.7,               // optional, 0.0..2.0, default 0.5
-        topK: 40,                       // optional, 1..100, default 40
         topP: 0.95,                     // optional, 0.0..1.0, default 0.95
         maxRetries: 2,                  // optional, 0..5
         timeoutMs: 45000                // optional, 1000..120000
@@ -132,9 +131,10 @@ export async function onIncidentSummaryReady(ctx, params) {
   `fileId`, `id`, `uploadId`, or `assetId`.
 - This option is available on `ctx.ai.enqueue`, `ctx.ai.chat`, `ctx.ai.oneShot`, and `ctx.ai.analyze`.
 
-## Optional Generation Parameters (temperature, topK, topP)
+## Optional Generation Parameters (temperature, topP)
 
-- `temperature`: number (`0.0`–`2.0`, default `0.5`), `topK`: integer (`1`–`100`, default `40`), and `topP`: number (`0.0`–`1.0`, default `0.95`).
+- `temperature`: number (`0.0`–`2.0`, default `0.5`) and `topP`: number (`0.0`–`1.0`, default `0.95`).
+- `topK`: deprecated and ignored by the underlying model API (still accepted as an integer `1`–`100` for backwards compatibility with existing sites; omit in new code).
 - These options are available on `ctx.ai.enqueue`, `ctx.ai.chat`, `ctx.ai.oneShot`, and `ctx.ai.analyze`.
 
 ## Cross-integration recipe (uploads + RBAC + metrics)
@@ -361,7 +361,7 @@ A call cut off by a platform restart is retried like a failed attempt, counting 
 - `workflowType` is required for `ctx.ai.enqueue`; `chat/oneShot/analyze` set it for you.
 - `enableGoogleSearch` must be a boolean when provided.
 - `temperature` must be between 0.0 and 2.0 when provided (default 0.5).
-- `topK` must be an integer between 1 and 100 when provided (default 40).
+- `topK` (deprecated, ignored by model) must be an integer between 1 and 100 when provided.
 - `topP` must be between 0.0 and 1.0 when provided (default 0.95).
 - `fileIds` must be an array of non-empty strings when provided.
 - `maxRetries` must be 0..5 when provided.

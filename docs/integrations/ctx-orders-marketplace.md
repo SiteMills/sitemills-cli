@@ -106,7 +106,7 @@ const checkout = await ctx.orders.checkout(checkoutParams);
 return { checkoutUrl: checkout.checkoutUrl, sessionId: checkout.checkoutSessionId };
 ```
 
-SiteMills automatically calculates and handles platform application fees; never pass `applicationFeeAmount` or `applicationFeePercent` into `ctx.orders.checkout`.
+Site code can't set platform fees. Never pass `applicationFeeAmount` or `applicationFeePercent` to `ctx.orders.checkout`: a request containing either is rejected.
 
 ## 4. Deduplicated Post-Checkout Settlement Verification
 
@@ -120,12 +120,12 @@ export async function finalizeSellerPayment(ctx: any, { sessionId }: { sessionId
     }
 
     const session = await ctx.orders.getSession(sessionId);
-    if (session.sessionStatus !== 'complete') {
-        return { success: false, reason: 'payment_not_completed' };
+    // 'paid' once Stripe reports the payment. A bank payment stays 'pending' for days: record nothing yet, so a
+    // later call (after it settles) records it as paid.
+    if (session.orderStatus !== 'paid') {
+        return { success: false, reason: 'payment_not_completed', paymentStatus: session.paymentStatus };
     }
-
-    const isPaid = session.orderStatus === 'paid' || session.paymentStatus === 'paid';
-    const status = isPaid ? 'paid' : 'processing';
+    const status = 'paid';
 
     await ctx.db.collection('transactions').insertOne({
         bookingId: session.metadata?.bookingId,

@@ -505,6 +505,11 @@ Over 80,000 CC0 game art and sound assets for SiteMills projects — sprites, ti
   sitemills-cli game-assets generate-model [prompt] [--project <projectId>] [--reference-image <key>] [--name <slug>] [--style <style>] [--quality <standard|high>] [--height <m>] [--max-triangles <n>] [--rig] [--json]
   sitemills-cli game-assets generate-model "low-poly medieval knight" --project my-game --style low-poly --rig
   ```
+- **game-assets blender-model**: Run a sandboxed headless Blender Python script (`bpy`, `bmesh`, `mathutils`, plus helpers `load_glb`, `make_material`, `assign_material`, `recolor`, `kitbash_attach`, `bake_action`, `scene_stats`) to remix or kitbash up to 4 CC0 library or project `.glb` inputs, model parametric 3D props/vehicles/tracks, or bake skeletal animation clips into a grounded, meshopt-compressed `.glb` (free of build credits except optional `--auto-orient` alignment; SHA-256 cached per project).
+  ```bash
+  sitemills-cli game-assets blender-model <script.py> [--project <projectId>] [--input alias=urlOrPath]... [--name <slug>] [--height <m>] [--max-triangles <n>] [--auto-orient] [--no-animations] [--json]
+  sitemills-cli game-assets blender-model remix_car.py --project my-game --input car=https://game-assets.sitemills.com/library/kenney/car-kit/.../race.glb --name crimson-kart --height 1.3 --auto-orient
+  ```
 
 ### Stripe Payments & In-Person POS Terminal
 
@@ -598,7 +603,7 @@ How the CLI stays current depends on how you installed it:
 - `--force`: Force check and apply updates, ignoring local cache TTL.
 - `--kind <kind>`: Asset kind for `game-assets search` (`IMAGE`, `SPRITESHEET`, `MODEL`, `SOUND`, `FONT`, `ENVIRONMENT`).
 - `--pack <pack>`: Only assets from this pack, for `game-assets search` (a result's `pack`).
-- `--project <id>`: Target project ID or site address (defaults to linked `.sitemills/project.json` for `game-assets generate-material` / `generate-model`).
+- `--project <id>`: Target project ID or site address (defaults to linked `.sitemills/project.json` for `game-assets generate-material` / `generate-model` / `blender-model`).
 - `--style <style>`: Art style for `game-assets search` or generation (`realistic`, `stylized`, `low-poly`, `voxel`, `pixel`, `flat`, `toon`, `hand-drawn`, `sketch`).
 - `--resolution <px>`: Texture size for `game-assets generate-material` (`512` or `1024`, default `1024`).
 - `--roughness <0..1>`: Base PBR roughness for `game-assets generate-material`.
@@ -607,9 +612,12 @@ How the CLI stays current depends on how you installed it:
 - `--no-seamless`: Disable toroidal seamless edge blending on `game-assets generate-material`.
 - `--reference-image <key>`: Existing project media image path for image-to-3D on `game-assets generate-model`.
 - `--quality <tier>`: Model detail tier for `game-assets generate-model` (`standard` or `high`).
-- `--height <metres>`: Target standing height in metres for `game-assets generate-model` (`0.1` to `25.0`).
-- `--max-triangles <n>`: Maximum triangle count for `game-assets search` or `generate-model` (`1000` to `50000`).
+- `--height <metres>`: Target standing height in metres (`0.1` to `25.0` for `generate-model`; `0.05` to `100.0` for `blender-model`).
+- `--max-triangles <n>`: Maximum triangle count for `game-assets search`, `generate-model` (`1000` to `50000`), or `blender-model` (`100` to `100000`).
 - `--rig`: Auto-rig a standing humanoid character with `Idle`/`Walk`/`Run` clips on `game-assets generate-model` (takes 2–4 minutes).
+- `--input <alias=urlOrPath>`: Stage a CC0 library `.glb` URL or project `/assets/....glb` path for `load_glb(alias)` in `game-assets blender-model` (repeatable, up to 4).
+- `--auto-orient`: Auto-rotate a non-rigged directional model so its front faces `-Z` on `game-assets blender-model`.
+- `--no-animations`: Skip exporting Blender actions / NLA clips into the `.glb` on `game-assets blender-model`.
 - `--write <file>`: Write a kit's assets to this file as `GAME_ASSETS` (`game-assets kit`).
 - `--overwrite`: Let `--write` replace an existing file.
 - `--template <id>`: The starter game for `game create` (list them with `game templates`).

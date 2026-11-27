@@ -70,11 +70,11 @@ const checkout = await ctx.orders.checkout({
 });
 ```
 
-See `docs/ctx-orders-checkout.md` for tax calculation, shipping options, promo codes, custom fields, trial periods, dynamic wallets, `expireCheckout(sessionId)`, and `getSession(sessionId)`.
+See `docs/ctx-orders-checkout.md` for the optional features (shipping, custom fields, discounts, automatic tax and what each needs), dynamic wallets, `expireCheckout(sessionId)`, `getSession(sessionId)`, and fulfilling paid orders.
 
-### 4) Read a Live Scoped Order (`getOrder`)
+### 4) Read an Order (`getOrder`)
 
-Look up the current state of an individual order strictly within the current project and runtime environment (`DEV`, `STAGING`, or `PROD`):
+Look up one order within the current project and runtime environment (`DEV`, `STAGING`, or `PROD`). While the order is still unpaid, `getOrder` checks its checkout session with Stripe first, so it reports `paid` once the buyer has paid:
 
 ```typescript
 const order = await ctx.orders.getOrder('ord_abc123');
@@ -82,10 +82,10 @@ const order = await ctx.orders.getOrder('ord_abc123');
 const order2 = await ctx.orders.getOrder({ orderId: 'ord_abc123' });
 ```
 
-Returns live order state:
+Returns the order:
 - `orderId`, `orderType`, `status`, `stripeCheckoutSessionId`, `stripePaymentIntentId`, `stripeSubscriptionId`
 - Monetary breakdown in major units: `amountSubtotal`, `amountTax`, `amountShipping`, `amountDiscount`, `amountTotal`, `amountRefunded`, `currency`, `promoCode`
-- Line items (`items[]`), buyer details (`customerEmail`, `customerName`, `customerPhone`, `shippingDetails`), `customFields` (key-value map `Record<string, string> | null`), `marketingConsent` (`'opt_in' | 'opt_out' | null`), `recoveryUrl` (populated for abandoned/expired recovery flows when enabled), `createdAt`, and `updatedAt`
+- Line items (`items[]`), buyer details (`customerEmail`, `customerName`, `customerPhone`, `shippingDetails`), `customFields` (key-value map `Record<string, string> | null`), `marketingConsent` (`'opt_in' | 'opt_out' | null`), `recoveryUrl` (set once an expired session with abandoned-cart recovery has a recovery link), `createdAt`, and `updatedAt`
 - Never pass `projectId` to `getOrder`; project and scope are derived automatically from the active runtime context.
 
 ### 5) Customer Order History (`getOrderHistory`)
